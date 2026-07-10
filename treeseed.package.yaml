@@ -1,0 +1,16 @@
+schemaVersion: treeseed.package/v1
+id: reviewer
+name: "@treeseed/reviewer"
+repository:
+  owner: treeseed-ai
+  name: reviewer
+projectArchitecture:
+  rootPath: "."
+  sitePath: "docs"
+  contentRuntimeSource: none
+  localContentMaterialization: none
+workflows:
+  verify: verify
+release:
+  packageManager: npm
+  releaseGate: verify

@@ -1,0 +1,57 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.reviewer.workplan.create-local-workplan.001
+journeyIndex: 500
+type: reviewer
+subtype: workplan
+journey: Create a local AI workplan from reviewed guarantee evidence
+ownerPackage: "@treeseed/reviewer"
+surface: cli
+summary: A local reviewer can load a guarantee run, attach human notes to a failed guarantee, copy related screenshots/logs/evidence, and package a Codex-ready workplan.
+status: active
+run:
+  requiredForRelease: false
+dependencies:
+  journeys: []
+  guarantees: []
+actors:
+  allowed:
+    - local-operator
+  forbidden:
+    - unauthenticated-remote-user
+devices:
+  required:
+    - desktop_chromium
+gates:
+  - core
+preconditions:
+  fixtures:
+    - fixture-guarantee-run
+  notes:
+    - Uses package-local fixture artifacts for the first verifier.
+scene:
+  required: false
+api:
+  required: true
+  verifierRefs:
+    - reviewer.workplan.package-local
+negativeCases:
+  - id: outside-workspace-evidence-denied
+    actor: local-operator
+    verifierRefs:
+      - reviewer.evidence.rejects-outside-workspace
+    notes:
+      - Workplan evidence access must not allow paths outside the selected workspace.
+content:
+  required: false
+audit:
+  required: false
+evidence:
+  required:
+    - workplan.yaml
+    - agent-brief.md
+    - evidence/manifest.json
+  optional:
+    - screenshot evidence
+    - console logs
+notes:
+  - Initial verifier uses package-local workplan packaging tests. A reviewer UI scene can strengthen this guarantee later.

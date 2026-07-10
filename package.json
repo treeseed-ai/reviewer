@@ -1,0 +1,80 @@
+{
+  "name": "@treeseed/reviewer",
+  "version": "0.1.0-dev",
+  "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/treeseed-ai/reviewer.git",
+    "directory": "."
+  },
+  "homepage": "https://treeseed.dev",
+  "bugs": {
+    "url": "https://github.com/treeseed-ai/reviewer/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist",
+    "treeseed.package.yaml"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "treeseed-reviewer": "./dist/bin/reviewer.js",
+    "trsd-reviewer": "./dist/bin/reviewer.js"
+  },
+  "scripts": {
+    "setup": "npm install",
+    "setup:ci": "npm ci",
+    "dev": "vite --host 127.0.0.1",
+    "build": "npm run build:dist",
+    "build:dist": "vite build && node --import tsx ./scripts/build-server.ts",
+    "lint": "npm run build:dist",
+    "test": "vitest run --config ./vitest.config.ts",
+    "test:guarantees": "vitest run --config ./vitest.guarantees.config.ts",
+    "test:guarantees:coverage": "vitest run --config ./vitest.guarantees.config.ts --coverage",
+    "verify": "npm run build:dist && npm run test",
+    "verify:local": "npm run verify",
+    "verify:direct": "npm run verify",
+    "prepack": "npm run build:dist"
+  },
+  "dependencies": {
+    "@treeseed/cli": "github:treeseed-ai/cli#3ea70b6c2cdcc840b515a50c7c6965d6905f5a48",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#1e29c9b01f8659ee897e9e41ca88a5e3b402bc19",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.2",
+    "@vitejs/plugin-react": "^5.2.0",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.5",
+    "vitest": "^4.1.2"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/app.d.ts",
+      "default": "./dist/server/app.js"
+    },
+    "./workplan": {
+      "types": "./dist/shared/workplan.d.ts",
+      "default": "./dist/shared/workplan.js"
+    }
+  }
+}
