@@ -1,0 +1,33 @@
+name: Verify TreeSeed Reviewer
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.12.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run verify
+      - name: Pack verified artifact
+        run: mkdir -p artifacts && npm pack --json --ignore-scripts --pack-destination artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reviewer-${{ github.sha }}
+          path: artifacts/*.tgz
+          if-no-files-found: error
+          retention-days: 14
