@@ -1,5 +1,5 @@
 schemaVersion: treeseed.package/v1
-id: reviewer
+id: "@treeseed/reviewer"
 name: "@treeseed/reviewer"
 repository:
   owner: treeseed-ai

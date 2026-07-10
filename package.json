@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev",
+  "version": "0.1.0-dev.staging.20260710T030831Z",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "AGPL-3.0-only",
   "repository": {
@@ -45,8 +45,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#3ea70b6c2cdcc840b515a50c7c6965d6905f5a48",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#1e29c9b01f8659ee897e9e41ca88a5e3b402bc19",
+    "@treeseed/cli": "github:treeseed-ai/cli#30b36eae1dff65ddfbf798b0b842aaa1b6eebb8c",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#d1798cc7fa6e3ecbe3e68a4056f2f4944e61648b",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
@@ -55,8 +55,8 @@
     "@types/node": "^24.6.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@vitest/coverage-v8": "^4.1.2",
     "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "^4.1.2",
     "esbuild": "^0.28.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
