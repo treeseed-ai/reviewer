@@ -22,10 +22,22 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Build exact lock-pinned TreeSeed SDK
+      - name: Hydrate exact verified TreeSeed SDK artifact
+        env:
+          GH_TOKEN: ${{ secrets.TREESEED_GITHUB_TOKEN || github.token }}
         run: |
           set -euo pipefail
-          npm --prefix node_modules/@treeseed/sdk run build:dist
+          TREESEED_SDK_SHA="$(node -p "require('./package.json').dependencies['@treeseed/sdk'].split('#').at(-1)")"
+          run_id=""
+          for attempt in $(seq 1 60); do
+            run_id="$(gh run list --repo treeseed-ai/sdk --workflow verify.yml --commit "${TREESEED_SDK_SHA}" --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+            [[ -n "${run_id}" ]] && break
+            sleep 10
+          done
+          test -n "${run_id}"
+          mkdir -p .treeseed/sdk-artifact
+          gh run download "${run_id}" --repo treeseed-ai/sdk --name "sdk-${TREESEED_SDK_SHA}" --dir .treeseed/sdk-artifact
+          npm install --no-save --ignore-scripts --no-audit --no-fund .treeseed/sdk-artifact/*.tgz
           node -e "import('@treeseed/sdk/guarantees')"
       - run: npm run verify
       - name: Pack verified artifact
