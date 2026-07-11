@@ -4,20 +4,12 @@ name: TreeSeed Reviewer
 kind: node-typescript
 type: local-tool
 repository: treeseed-ai/reviewer
-publishTarget: npm
-capabilities: { save: true, verify: true, publish: true, deploy: false, localOnly: true }
+capabilities: { save: true, verify: true, publish: false, deploy: false, localOnly: true }
 workflowTemplateVersion: "1"
-githubEnvironments:
-  - production
-requiredSecrets:
-  - NPM_TOKEN
 verify:
   fast: npm run verify
   local: npm run verify:local
   release: npm run verify
-artifacts:
-  - provider: npm
-    name: "@treeseed/reviewer"
 releaseGate:
   workflow: verify.yml
 projectArchitecture:
