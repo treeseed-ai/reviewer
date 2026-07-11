@@ -24,7 +24,7 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Hydrate exact verified TreeSeed SDK artifact
         env:
-          GH_TOKEN: ${{ secrets.TREESEED_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.TREESEED_GITHUB_TOKEN || github.token }}
         run: |
           set -euo pipefail
           TREESEED_SDK_SHA="$(node -p "require('./package.json').dependencies['@treeseed/sdk'].split('#').at(-1)")"
