@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev.recovery-prod-treedx-image-binding.20260712T160743Z",
+  "version": "0.1.0-dev.recovery-hosted-reconcile-env-boundary.20260712T175617Z",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "AGPL-3.0-only",
   "repository": {
@@ -45,8 +45,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#44b112aa73e09ddb7d9523b4982352045f61b4a2",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#9d64dce58d9e92b46a7ebf27f194c34a6f8d84a4",
+    "@treeseed/cli": "github:treeseed-ai/cli#58c0c929dba42b905f6b264cb23d548734727e10",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#ee878b54db7094becab383026986a05d851d7865",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
