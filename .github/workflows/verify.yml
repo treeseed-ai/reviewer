@@ -27,7 +27,14 @@ jobs:
           GH_TOKEN: ${{ secrets.TREESEED_GITHUB_TOKEN || github.token }}
         run: |
           set -euo pipefail
-          TREESEED_SDK_SHA="$(node -p "require('./package.json').dependencies['@treeseed/sdk'].split('#').at(-1)")"
+          TREESEED_SDK_SPEC="$(node -p "require('./package.json').dependencies['@treeseed/sdk']")"
+          TREESEED_SDK_REF="${TREESEED_SDK_SPEC##*#}"
+          if [[ ! "${TREESEED_SDK_REF}" =~ ^[0-9a-f]{40}$ ]]; then
+            test "$(node -p "require('./node_modules/@treeseed/sdk/package.json').version")" = "${TREESEED_SDK_SPEC}"
+            node -e "import('@treeseed/sdk/guarantees')"
+            exit 0
+          fi
+          TREESEED_SDK_SHA="${TREESEED_SDK_REF}"
           run_id=""
           for attempt in $(seq 1 60); do
             run_id="$(gh run list --repo treeseed-ai/sdk --workflow verify.yml --commit "${TREESEED_SDK_SHA}" --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
