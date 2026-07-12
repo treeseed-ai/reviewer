@@ -45,8 +45,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#b254debd8912c2a6d1c8f5d637f276cca347ddc3",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#e71a7bb7091f659a6f5e185afc5b0fc00ff1e22f",
+    "@treeseed/cli": "github:treeseed-ai/cli#39318aa26a359b2d7376b15fcf48bbcc8d5f311b",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#03b84939501a8c35a2638b17b76f269851c4c07d",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
