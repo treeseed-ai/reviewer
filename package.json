@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev.recovery-bulk-branch-cleanup-performance.20260713T130858Z",
+  "version": "0.1.0-dev.recovery-production-railway-environment-.20260713T152203Z",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "AGPL-3.0-only",
   "repository": {
@@ -45,8 +45,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#2d1e55c1dc591a07d2f1481a7d4656e738ad00fc",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#d7cb7bd0fba1c9d3901c44b033b2b66885a9d538",
+    "@treeseed/cli": "github:treeseed-ai/cli#44ecb9cf88023cc546787c6732a211b1334e3803",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#30d1a7066e05b1a48e77d79605fe89126e889659",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
