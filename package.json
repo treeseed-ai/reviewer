@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev.fix-persist-release-image-refs.20260713T233318Z",
+  "version": "0.1.0-dev.fix-railway-service-dedup.20260714T023109Z",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "AGPL-3.0-only",
   "repository": {
@@ -45,8 +45,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#d4b87ecb982dfc2c59120c12413e406784f3744b",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#ccb547f9cf49f956bef7a51d6cc956354b5a8953",
+    "@treeseed/cli": "github:treeseed-ai/cli#0af077945d1bfe0d6e7ccbe174fde3ef466cbacc",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#425cd3a525337dfebcbaf34be216e9b78eb3a81e",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
