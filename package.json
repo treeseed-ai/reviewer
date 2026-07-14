@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev.fix-railway-service-dedup.20260714T023109Z",
+  "version": "0.1.0-dev.fix-railway-environment-source-isolation.20260714T120500Z",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "AGPL-3.0-only",
   "repository": {
@@ -45,8 +45,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#423ef85c682f10724f48c9d11bac3c947d0058b5",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#dffc0b2e623f653afb662b0dd3f56c07627af387",
+    "@treeseed/cli": "github:treeseed-ai/cli#83003cd0d58947824fab6f339bd0efb9be681df4",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#b0c561c0d492f085790b595e9e1c7efa939df4c7",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
