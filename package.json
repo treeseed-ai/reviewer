@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev.staging.20260715T162519Z",
+  "version": "0.1.0-dev.fix-railway-staged-apply.20260715T222828Z",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "AGPL-3.0-only",
   "repository": {
@@ -45,8 +45,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#ba1dbd1da4fa091cc6bdcce0d3574d3c5f6a6fae",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#96651d5c98cd2a12b9199d0cd102476ecf249766",
+    "@treeseed/cli": "github:treeseed-ai/cli#8846a2f72f7728a24708d3a4cbc0734b5628eed0",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#6f21e05e67c1c112a22ab27968364f4355313d38",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
