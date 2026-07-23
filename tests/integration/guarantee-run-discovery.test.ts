@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { commandArgsForGuarantees, discoverGuaranteeRuns, loadGuaranteeReviewRun } from '../src/server/guarantee-runs.ts';
+import { commandArgsForGuarantees, discoverGuaranteeRuns, loadGuaranteeReviewRun } from '../../src/server/guarantee-runs.ts';
 import type { TreeseedGuaranteeRunReport } from '@treeseed/sdk/guarantees';
 
 function fixtureReport(overrides: Partial<TreeseedGuaranteeRunReport> = {}): TreeseedGuaranteeRunReport {

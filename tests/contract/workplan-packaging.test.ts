@@ -3,8 +3,8 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { ReviewerDraftNote } from '../src/shared/contracts.ts';
-import { createWorkplan, writeDraft } from '../src/server/workplans.ts';
+import type { ReviewerDraftNote } from '../../src/shared/contracts.ts';
+import { createWorkplan, writeDraft } from '../../src/server/workplans.ts';
 
 function setupWorkspace() {
   const root = mkdtempSync(resolve(tmpdir(), 'treeseed-reviewer-workplan-'));

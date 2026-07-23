@@ -4,11 +4,11 @@ verifiers:
   reviewer.workplan.package-local:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
-    testFile: test/workplan-packaging.test.ts
+    testFile: tests/contract/workplan-packaging.test.ts
     description: Package-local verifier proves a reviewed guarantee run can be converted into a workplan with copied evidence and an agent brief.
   reviewer.evidence.rejects-outside-workspace:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
-    testFile: test/route-contracts.test.ts
+    testFile: tests/contract/route-contracts.test.ts
     testName: rejects evidence paths outside the workspace
     description: Evidence access rejects paths outside the local workspace boundary.

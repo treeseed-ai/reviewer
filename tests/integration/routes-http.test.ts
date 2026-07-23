@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { handleReviewerRequest } from '../src/server/routes.ts';
-import type { ReviewerTask } from '../src/shared/contracts.ts';
-import type { ReviewerServerContext } from '../src/server/workspace.ts';
+import { handleReviewerRequest } from '../../src/server/routes.ts';
+import type { ReviewerTask } from '../../src/shared/contracts.ts';
+import type { ReviewerServerContext } from '../../src/server/workspace.ts';
 
 const servers: Server[] = [];
 

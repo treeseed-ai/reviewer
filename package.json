@@ -35,18 +35,19 @@
     "dev": "vite --host 127.0.0.1",
     "build": "npm run build:dist",
     "build:dist": "vite build && node --import tsx ./scripts/build-server.ts",
-    "lint": "npm run build:dist",
+    "check:file-lengths": "node --import tsx ./scripts/check-file-lengths.ts",
+    "lint": "npm run check:file-lengths && npm run build:dist",
     "test": "vitest run --config ./vitest.config.ts",
     "test:guarantees": "vitest run --config ./vitest.guarantees.config.ts",
     "test:guarantees:coverage": "vitest run --config ./vitest.guarantees.config.ts --coverage",
-    "verify": "npm run build:dist && npm run test",
+    "verify": "npm run check:file-lengths && npm run build:dist && npm run test",
     "verify:local": "npm run verify",
     "verify:direct": "npm run verify",
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#bcc490852889267647466d10849a44ca771e1bb1",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#689ab4dee96c4b288589b3b60f5989e038fc7f8a",
+    "@treeseed/cli": "github:treeseed-ai/cli#c255a9b3641d3fe2fe1ef4dfd0ed96413256da8c",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#2e95b2e65d3a8f224b79459c127875483883c7f8",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
