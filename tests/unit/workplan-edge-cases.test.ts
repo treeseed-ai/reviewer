@@ -29,7 +29,7 @@ import {
 } from '../../src/shared/guarantee-review.ts';
 import { REVIEWER_DIRECTIVE_CONSTRAINTS, directiveTypeFor } from '../../src/shared/workplan.ts';
 import type { ReviewerDirectiveClassification, ReviewerDraftNote, ReviewerTask } from '../../src/shared/contracts.ts';
-import type { TreeseedGuaranteePlanReport, TreeseedGuaranteeRunReport, TreeseedGuaranteeRunResult } from '@treeseed/sdk/guarantees';
+import type { GuaranteePlanReport, GuaranteeRunReport, GuaranteeRunResult } from '@treeseed/sdk/guarantees';
 
 const servers: import('node:http').Server[] = [];
 
@@ -41,7 +41,7 @@ function tempRoot(prefix = 'treeseed-reviewer-critical-') {
   return mkdtempSync(resolve(tmpdir(), prefix));
 }
 
-function baseResult(overrides: Partial<TreeseedGuaranteeRunResult> = {}): TreeseedGuaranteeRunResult {
+function baseResult(overrides: Partial<GuaranteeRunResult> = {}): GuaranteeRunResult {
   return {
     id: 'guarantee.reviewer.sample.001',
     type: 'reviewer',
@@ -61,7 +61,7 @@ function baseResult(overrides: Partial<TreeseedGuaranteeRunResult> = {}): Treese
   };
 }
 
-function basePlan(entries: TreeseedGuaranteePlanReport['entries'] = []): TreeseedGuaranteePlanReport {
+function basePlan(entries: GuaranteePlanReport['entries'] = []): GuaranteePlanReport {
   return {
     ok: true,
     workspaceRoot: '/tmp/workspace',
@@ -73,7 +73,7 @@ function basePlan(entries: TreeseedGuaranteePlanReport['entries'] = []): Treesee
   };
 }
 
-function baseReport(root: string, results: TreeseedGuaranteeRunResult[], plan = basePlan()): TreeseedGuaranteeRunReport {
+function baseReport(root: string, results: GuaranteeRunResult[], plan = basePlan()): GuaranteeRunReport {
   return {
     ok: results.every((result) => result.status === 'passed'),
     runId: 'run-a',
@@ -97,7 +97,7 @@ function baseReport(root: string, results: TreeseedGuaranteeRunResult[], plan = 
   };
 }
 
-function writeRun(root: string, report: TreeseedGuaranteeRunReport, kind: 'runs' | 'release' = 'runs') {
+function writeRun(root: string, report: GuaranteeRunReport, kind: 'runs' | 'release' = 'runs') {
   const runDir = resolve(root, '.treeseed/guarantees', kind, report.runId);
   mkdirSync(runDir, { recursive: true });
   mkdirSync(resolve(root, 'packages/reviewer/guarantees/reviewer/workplan'), { recursive: true });

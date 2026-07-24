@@ -1,11 +1,11 @@
 import type {
-  TreeseedGuaranteeDiagnostic,
-  TreeseedGuaranteeFilter,
-  TreeseedGuaranteePlanReport,
-  TreeseedGuaranteeRunReport,
-  TreeseedGuaranteeRunResult,
-  TreeseedGuaranteeRunStatus,
-  TreeseedGuaranteeRunStep,
+  GuaranteeDiagnostic,
+  GuaranteeFilter,
+  GuaranteePlanReport,
+  GuaranteeRunReport,
+  GuaranteeRunResult,
+  GuaranteeRunStatus,
+  GuaranteeRunStep,
 } from '@treeseed/sdk/guarantees';
 
 export type ReviewerRunKind = 'local' | 'release';
@@ -43,7 +43,7 @@ export type ReviewerGuaranteeRunSummary = {
   startedAt: string;
   completedAt?: string;
   ok: boolean;
-  filter: TreeseedGuaranteeFilter;
+  filter: GuaranteeFilter;
   counts: {
     passed: number;
     failed: number;
@@ -67,7 +67,7 @@ export type ReviewerGuaranteeCatalogEntry = {
 
 export type ReviewerGuaranteePlanRequest = {
   environment: 'local' | 'staging' | 'prod';
-  filter: TreeseedGuaranteeFilter;
+  filter: GuaranteeFilter;
   includeDependencies: boolean;
   includePlanned: boolean;
   device?: string;
@@ -129,14 +129,14 @@ export type ReviewerGuaranteeReviewItem = {
   ownerPackage: string;
   type: string;
   subtype: string;
-  status: TreeseedGuaranteeRunStatus;
+  status: GuaranteeRunStatus;
   selected: boolean;
   dependency: boolean;
   releaseBlocking: boolean;
   sourcePath: string;
   summary: string;
-  steps: TreeseedGuaranteeRunStep[];
-  diagnostics: TreeseedGuaranteeDiagnostic[];
+  steps: GuaranteeRunStep[];
+  diagnostics: GuaranteeDiagnostic[];
   evidence: ReviewerEvidenceItem[];
   primaryScreenshot?: ReviewerEvidenceItem;
   primaryLog?: ReviewerEvidenceItem;
@@ -147,8 +147,8 @@ export type ReviewerGuaranteeReviewItem = {
 
 export type ReviewerGuaranteeReviewRun = {
   run: ReviewerGuaranteeRunSummary;
-  report: TreeseedGuaranteeRunReport;
-  plan: TreeseedGuaranteePlanReport | null;
+  report: GuaranteeRunReport;
+  plan: GuaranteePlanReport | null;
   items: ReviewerGuaranteeReviewItem[];
 };
 
@@ -197,7 +197,7 @@ export type ReviewerCopiedEvidence = {
   sensitivity: 'local-private' | 'unknown';
 };
 
-export type TreeseedReviewerDirectiveSummary = {
+export type ReviewerDirectiveSummary = {
   id: string;
   order: number;
   guaranteeId: string;
@@ -209,7 +209,7 @@ export type TreeseedReviewerDirectiveSummary = {
   yamlPath: string;
 };
 
-export type TreeseedReviewerWorkplan = {
+export type ReviewerWorkplan = {
   schemaVersion: 'treeseed.reviewer.workplan/v1';
   id: string;
   title: string;
@@ -220,7 +220,7 @@ export type TreeseedReviewerWorkplan = {
     runOutputRoot: string;
     reportPath: string;
     environment: string;
-    filter: TreeseedGuaranteeFilter;
+    filter: GuaranteeFilter;
   };
   summary: {
     directiveCount: number;
@@ -228,7 +228,7 @@ export type TreeseedReviewerWorkplan = {
     ownerPackages: string[];
     statuses: Record<string, number>;
   };
-  directives: TreeseedReviewerDirectiveSummary[];
+  directives: ReviewerDirectiveSummary[];
   evidenceManifest: string;
   commands: {
     reproduce: string;
@@ -236,7 +236,7 @@ export type TreeseedReviewerWorkplan = {
   };
 };
 
-export type TreeseedReviewerDirective = {
+export type ReviewerDirective = {
   schemaVersion: 'treeseed.reviewer.directive/v1';
   id: string;
   order: number;
@@ -249,7 +249,7 @@ export type TreeseedReviewerDirective = {
     type: string;
     subtype: string;
     journey: string;
-    status: TreeseedGuaranteeRunStatus;
+    status: GuaranteeRunStatus;
     sourcePath: string;
     verifierRefs: string[];
     sceneRefs: string[];
@@ -263,7 +263,7 @@ export type TreeseedReviewerDirective = {
   evidence: {
     copied: ReviewerCopiedEvidence[];
     sourcePaths: string[];
-    diagnostics: TreeseedGuaranteeDiagnostic[];
+    diagnostics: GuaranteeDiagnostic[];
   };
   constraints: string[];
   acceptance: {
@@ -285,7 +285,7 @@ export type ReviewerRunPaths = {
 export type ReviewerRunWithPaths = {
   summary: ReviewerGuaranteeRunSummary;
   paths: ReviewerRunPaths;
-  report: TreeseedGuaranteeRunReport;
-  plan: TreeseedGuaranteePlanReport | null;
-  results: TreeseedGuaranteeRunResult[];
+  report: GuaranteeRunReport;
+  plan: GuaranteePlanReport | null;
+  results: GuaranteeRunResult[];
 };

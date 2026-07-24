@@ -8,7 +8,7 @@ import type {
   ReviewerGuaranteeReviewItem,
   ReviewerGuaranteeRunSummary,
 } from './contracts.ts';
-import type { TreeseedGuaranteePlanEntry, TreeseedGuaranteePlanReport, TreeseedGuaranteeRunReport, TreeseedGuaranteeRunResult } from '@treeseed/sdk/guarantees';
+import type { GuaranteePlanEntry, GuaranteePlanReport, GuaranteeRunReport, GuaranteeRunResult } from '@treeseed/sdk/guarantees';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif']);
 const LOG_EXTENSIONS = new Set(['.log', '.txt', '.jsonl', '.out', '.err']);
@@ -33,11 +33,11 @@ function isViewportScreenshotPath(path: string) {
   return path.replace(/\\/gu, '/').includes('/playwright/screenshots/viewport/');
 }
 
-export function releaseBlockingPlanEntry(entry?: TreeseedGuaranteePlanEntry) {
+export function releaseBlockingPlanEntry(entry?: GuaranteePlanEntry) {
   return Boolean(entry && (entry.gates.includes('release') || entry.gates.includes('security') || entry.gates.includes('migration')));
 }
 
-export function recommendedPriority(result: TreeseedGuaranteeRunResult, planEntry?: TreeseedGuaranteePlanEntry): ReviewerDirectivePriority {
+export function recommendedPriority(result: GuaranteeRunResult, planEntry?: GuaranteePlanEntry): ReviewerDirectivePriority {
   if ((result.status === 'failed' || result.status === 'blocked') && releaseBlockingPlanEntry(planEntry)) return 'release-blocking';
   if ((result.status === 'failed' || result.status === 'blocked') && result.selected) return 'high';
   if (result.status === 'failed' || result.status === 'blocked') return 'high';
@@ -45,7 +45,7 @@ export function recommendedPriority(result: TreeseedGuaranteeRunResult, planEntr
   return 'low';
 }
 
-export function recommendedClassification(result: TreeseedGuaranteeRunResult): ReviewerDirectiveClassification {
+export function recommendedClassification(result: GuaranteeRunResult): ReviewerDirectiveClassification {
   if (result.status === 'passed') return 'ux-improvement';
   if (result.status === 'skipped') return 'investigate';
   if (result.diagnostics.some((entry) => /fixture|environment|local_dev|seed|auth/iu.test(`${entry.code} ${entry.message}`))) return 'fixture-environment-defect';
@@ -53,7 +53,7 @@ export function recommendedClassification(result: TreeseedGuaranteeRunResult): R
   return 'product-defect';
 }
 
-export function rerunCommandFor(result: TreeseedGuaranteeRunResult, environment: string) {
+export function rerunCommandFor(result: GuaranteeRunResult, environment: string) {
   return `npx trsd guarantees run --id ${result.id} --environment ${environment} --json`;
 }
 
@@ -174,7 +174,7 @@ function expandDirectoryEvidence(input: { workspaceRoot: string; runOutputRoot: 
     .map((absolute) => relative(input.workspaceRoot, absolute).replace(/\\/gu, '/'));
 }
 
-export function evidenceItemsFor(input: { workspaceRoot: string; runOutputRoot: string; result: TreeseedGuaranteeRunResult }): ReviewerEvidenceItem[] {
+export function evidenceItemsFor(input: { workspaceRoot: string; runOutputRoot: string; result: GuaranteeRunResult }): ReviewerEvidenceItem[] {
   const items: ReviewerEvidenceItem[] = [];
   let index = 0;
   const push = (source: ReviewerEvidenceItem['source'], path: string, stepId?: string) => {
@@ -212,9 +212,9 @@ export function evidenceItemsFor(input: { workspaceRoot: string; runOutputRoot: 
   }));
 }
 
-export function sortReviewResults(report: TreeseedGuaranteeRunReport, plan: TreeseedGuaranteePlanReport | null) {
+export function sortReviewResults(report: GuaranteeRunReport, plan: GuaranteePlanReport | null) {
   const planEntries = new Map((plan?.entries ?? []).map((entry) => [entry.id, entry]));
-  const rank = (result: TreeseedGuaranteeRunResult) => {
+  const rank = (result: GuaranteeRunResult) => {
     const entry = planEntries.get(result.id);
     if ((result.status === 'failed' || result.status === 'blocked') && releaseBlockingPlanEntry(entry)) return 0;
     if (result.status === 'blocked' && result.selected) return 1;
@@ -230,8 +230,8 @@ export function sortReviewResults(report: TreeseedGuaranteeRunReport, plan: Tree
 export function buildReviewItems(input: {
   workspaceRoot: string;
   run: ReviewerGuaranteeRunSummary;
-  report: TreeseedGuaranteeRunReport;
-  plan: TreeseedGuaranteePlanReport | null;
+  report: GuaranteeRunReport;
+  plan: GuaranteePlanReport | null;
 }): ReviewerGuaranteeReviewItem[] {
   const planEntries = new Map((input.plan?.entries ?? []).map((entry) => [entry.id, entry]));
   const items = sortReviewResults(input.report, input.plan).map((result, index) => {

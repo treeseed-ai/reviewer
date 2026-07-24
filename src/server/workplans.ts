@@ -8,9 +8,9 @@ import type {
   ReviewerDraftNote,
   ReviewerEvidenceItem,
   ReviewerWorkplanCreateResponse,
-  TreeseedReviewerDirective,
-  TreeseedReviewerDirectiveSummary,
-  TreeseedReviewerWorkplan,
+  ReviewerDirective,
+  ReviewerDirectiveSummary,
+  ReviewerWorkplan,
 } from '../shared/contracts.ts';
 import { REVIEWER_DIRECTIVE_CONSTRAINTS, directiveTypeFor } from '../shared/workplan.ts';
 import { loadGuaranteeReviewRun } from './guarantee-runs.ts';
@@ -86,7 +86,7 @@ function sceneRefs(item: import('../shared/contracts.ts').ReviewerGuaranteeRevie
   return item.steps.filter((step) => step.kind === 'scene').map((step) => step.ref ?? step.id);
 }
 
-function directiveMarkdown(directive: TreeseedReviewerDirective) {
+function directiveMarkdown(directive: ReviewerDirective) {
   const copied = directive.evidence.copied.map((entry) => `- ${entry.kind}: ${entry.copiedPath ?? entry.sourcePath}${entry.exists ? '' : ' (missing)'}`).join('\n') || '- No copied evidence.';
   return [
     `# ${directive.order}. ${directive.source.guaranteeId}`,
@@ -115,7 +115,7 @@ function directiveMarkdown(directive: TreeseedReviewerDirective) {
   ].join('\n');
 }
 
-function workplanMarkdown(workplan: TreeseedReviewerWorkplan, directives: TreeseedReviewerDirective[]) {
+function workplanMarkdown(workplan: ReviewerWorkplan, directives: ReviewerDirective[]) {
   return [
     `# ${workplan.title}`,
     '',
@@ -142,7 +142,7 @@ function workplanMarkdown(workplan: TreeseedReviewerWorkplan, directives: Treese
   ].join('\n');
 }
 
-function agentBrief(workplan: TreeseedReviewerWorkplan, directives: TreeseedReviewerDirective[]) {
+function agentBrief(workplan: ReviewerWorkplan, directives: ReviewerDirective[]) {
   const lines = [
     `# Codex Workplan: ${workplan.title}`,
     '',
@@ -218,7 +218,7 @@ export function createWorkplan(workspaceRoot: string, request: ReviewerCreateWor
   const workplanId = workplanIdFor(request.title);
   const workplanRoot = resolve(workspaceRoot, '.treeseed', 'workplans', workplanId);
   mkdirSync(workplanRoot, { recursive: true });
-  const directives: TreeseedReviewerDirective[] = [];
+  const directives: ReviewerDirective[] = [];
   const evidence: ReviewerCopiedEvidence[] = [];
   let order = 0;
   for (const item of selected) {
@@ -226,7 +226,7 @@ export function createWorkplan(workspaceRoot: string, request: ReviewerCreateWor
     const directiveId = `${String(order + 1).padStart(3, '0')}-${safeSlug(item.guaranteeId)}`;
     const copied = item.evidence.map((evidenceItem) => copyEvidence({ workplanRoot, directiveId, guaranteeId: item.guaranteeId, item: evidenceItem }));
     evidence.push(...copied);
-    const directive: TreeseedReviewerDirective = {
+    const directive: ReviewerDirective = {
       schemaVersion: 'treeseed.reviewer.directive/v1',
       id: directiveId,
       order: order += 1,
@@ -270,7 +270,7 @@ export function createWorkplan(workspaceRoot: string, request: ReviewerCreateWor
   }
   const statuses: Record<string, number> = {};
   for (const directive of directives) statuses[directive.source.status] = (statuses[directive.source.status] ?? 0) + 1;
-  const summaries: TreeseedReviewerDirectiveSummary[] = directives.map((directive) => ({
+  const summaries: ReviewerDirectiveSummary[] = directives.map((directive) => ({
     id: directive.id,
     order: directive.order,
     guaranteeId: directive.source.guaranteeId,
@@ -281,7 +281,7 @@ export function createWorkplan(workspaceRoot: string, request: ReviewerCreateWor
     yamlPath: `directives/${directive.id}.directive.yaml`,
     markdownPath: `directives/${directive.id}.md`,
   }));
-  const workplan: TreeseedReviewerWorkplan = {
+  const workplan: ReviewerWorkplan = {
     schemaVersion: 'treeseed.reviewer.workplan/v1',
     id: workplanId,
     title: request.title,

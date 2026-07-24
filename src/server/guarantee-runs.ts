@@ -13,8 +13,8 @@ import type {
   ReviewerTask,
 } from '../shared/contracts.ts';
 import { buildReviewItems } from '../shared/guarantee-review.ts';
-import type { TreeseedGuaranteePlanReport, TreeseedGuaranteeRunReport } from '@treeseed/sdk/guarantees';
-import { discoverTreeseedGuarantees } from '@treeseed/sdk/guarantees';
+import type { GuaranteePlanReport, GuaranteeRunReport } from '@treeseed/sdk/guarantees';
+import { discoverGuarantees } from '@treeseed/sdk/guarantees';
 import { assertInsideWorkspace, directoryExists, fileExists } from './workspace.ts';
 
 function readJson<T>(path: string): T {
@@ -34,7 +34,7 @@ function runPaths(workspaceRoot: string, kind: ReviewerRunKind, runId: string): 
   };
 }
 
-function summaryFromReport(paths: ReviewerRunPaths, report: TreeseedGuaranteeRunReport): ReviewerGuaranteeRunSummary {
+function summaryFromReport(paths: ReviewerRunPaths, report: GuaranteeRunReport): ReviewerGuaranteeRunSummary {
   return {
     runId: report.runId || paths.runId,
     kind: paths.kind,
@@ -62,7 +62,7 @@ export function discoverGuaranteeRuns(workspaceRoot: string): ReviewerGuaranteeR
       const paths = runPaths(workspaceRoot, kind, entry.name);
       if (!fileExists(paths.reportPath)) continue;
       try {
-        out.push(summaryFromReport(paths, readJson<TreeseedGuaranteeRunReport>(paths.reportPath)));
+        out.push(summaryFromReport(paths, readJson<GuaranteeRunReport>(paths.reportPath)));
       } catch {
         // Ignore malformed run folders in the selector.
       }
@@ -77,7 +77,7 @@ export function discoverGuaranteeRuns(workspaceRoot: string): ReviewerGuaranteeR
 }
 
 export function discoverGuaranteeCatalog(workspaceRoot: string): ReviewerGuaranteeCatalogEntry[] {
-  const registry = discoverTreeseedGuarantees({ workspaceRoot });
+  const registry = discoverGuarantees({ workspaceRoot });
   return registry.guarantees
     .filter((entry) => entry.manifest)
     .map((entry) => {
@@ -121,8 +121,8 @@ export function loadGuaranteeReviewRun(workspaceRoot: string, runIdOrPath: strin
     markdownPath: resolve(outputRoot, 'report.md'),
     generatedCsvPath: resolve(outputRoot, 'generated.csv'),
   };
-  const report = readJson<TreeseedGuaranteeRunReport>(paths.reportPath);
-  const plan = fileExists(paths.planPath) ? readJson<TreeseedGuaranteePlanReport>(paths.planPath) : null;
+  const report = readJson<GuaranteeRunReport>(paths.reportPath);
+  const plan = fileExists(paths.planPath) ? readJson<GuaranteePlanReport>(paths.planPath) : null;
   const run = summaryFromReport(paths, report);
   return {
     run,
