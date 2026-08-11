@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev.fix-market-api-build-boundary.20260811T061319Z",
+  "version": "0.1.0-dev.fix-organization-reference-idempotency.20260811T063635Z",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "Apache-2.0",
   "repository": {
@@ -47,8 +47,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#58cc9b993c8b90bdbfe040eddc8b34a9d72af7be",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#c1582069610e51dd8ad30cd583c489a2174a397a",
+    "@treeseed/cli": "github:treeseed-ai/cli#dabc9d2ba1ee96f8bf21509540ae9120bb6357b8",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#1b90e1efe0dec6f599bbae93df409dd695012f76",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
