@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev.migration-market-api-standalone-verifica.20260811T043431Z",
+  "version": "0.1.0-dev.fix-market-api-build-boundary.20260811T061319Z",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "Apache-2.0",
   "repository": {
@@ -47,8 +47,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#c6ecfa1cbfa05e41c0bda19f2b88041d8eef996c",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#5ab6d67dc3f4fd93e75712719dd60999a5c6c778",
+    "@treeseed/cli": "github:treeseed-ai/cli#58cc9b993c8b90bdbfe040eddc8b34a9d72af7be",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#c1582069610e51dd8ad30cd583c489a2174a397a",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
