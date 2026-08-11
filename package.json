@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev.fix-organization-reference-idempotency.20260811T063635Z",
+  "version": "0.1.0-dev.feature-platform-live-workspace.20260811T072230Z",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "Apache-2.0",
   "repository": {
@@ -47,8 +47,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#dabc9d2ba1ee96f8bf21509540ae9120bb6357b8",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#1b90e1efe0dec6f599bbae93df409dd695012f76",
+    "@treeseed/cli": "github:treeseed-ai/cli#013f80779963d99d583760bcedf2f65ae879d941",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#14d5799da365fb230cc6ce8aacca53de8591012c",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
