@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev.fix-platform-machine-identity.20260818T064121Z",
+  "version": "0.1.0-dev.fix-platform-template-assets.20260818T085820Z",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "Apache-2.0",
   "repository": {
@@ -47,8 +47,8 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#014d5e1f95a4834c6b6280472f376fd59a03b411",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#6b2a5b14fd42ab63f1150b15658966a6715979f3",
+    "@treeseed/cli": "github:treeseed-ai/cli#2b18ae7e38740a607f625aea619cc35cd77f9418",
+    "@treeseed/sdk": "github:treeseed-ai/sdk#623b218752adbef1723034fb5885942d137ec612",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
