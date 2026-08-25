@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@treeseed/cli": "github:treeseed-ai/cli#3b0483a487c837b7d5d838db739387a36f10e1b2",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#f843c3cb11853db737d28ecc6bcc3d5df5e183e9",
+    "@treeseed/sdk": "0.13.0-rc.35",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
