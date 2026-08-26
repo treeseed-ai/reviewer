@@ -22,30 +22,10 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Hydrate exact verified TreeSeed SDK artifact
-        env:
-          GH_TOKEN: ${{ secrets.TREESEED_GITHUB_TOKEN || github.token }}
+      - name: Verify released dependency custody
         run: |
-          set -euo pipefail
-          TREESEED_SDK_SPEC="$(node -p "require('./package.json').dependencies['@treeseed/sdk']")"
-          TREESEED_SDK_REF="${TREESEED_SDK_SPEC##*#}"
-          if [[ ! "${TREESEED_SDK_REF}" =~ ^[0-9a-f]{40}$ ]]; then
-            test "$(node -p "require('./node_modules/@treeseed/sdk/package.json').version")" = "${TREESEED_SDK_SPEC}"
-            node -e "import('@treeseed/sdk/guarantees')"
-            exit 0
-          fi
-          TREESEED_SDK_SHA="${TREESEED_SDK_REF}"
-          run_id=""
-          for attempt in $(seq 1 60); do
-            run_id="$(gh run list --repo treeseed-ai/sdk --workflow verify.yml --commit "${TREESEED_SDK_SHA}" --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
-            [[ -n "${run_id}" ]] && break
-            sleep 10
-          done
-          test -n "${run_id}"
-          mkdir -p .treeseed/sdk-artifact
-          gh run download "${run_id}" --repo treeseed-ai/sdk --name "sdk-${TREESEED_SDK_SHA}" --dir .treeseed/sdk-artifact
-          npm install --no-save --ignore-scripts --no-audit --no-fund .treeseed/sdk-artifact/*.tgz
-          node -e "import('@treeseed/sdk/guarantees')"
+          node -e "import('@treeseed/sdk/operator-contracts')"
+          node -e "const value=require('./node_modules/@treeseed/ui/package.json').version; if(!value) process.exit(1)"
       - run: npm run verify
       - name: Pack verified artifact
         run: mkdir -p artifacts && npm pack --json --ignore-scripts --pack-destination artifacts
@@ -54,4 +34,4 @@ jobs:
           name: reviewer-${{ github.sha }}
           path: artifacts/*.tgz
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 90

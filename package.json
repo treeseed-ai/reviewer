@@ -44,11 +44,13 @@
     "verify": "npm run check:file-lengths && npm run build:dist && npm run test",
     "verify:local": "npm run verify",
     "verify:direct": "npm run verify",
+    "release:check-tag": "node --import tsx ./scripts/assert-release-tag-version.ts",
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#3b0483a487c837b7d5d838db739387a36f10e1b2",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#f843c3cb11853db737d28ecc6bcc3d5df5e183e9",
+    "@treeseed/cli": ">=0.13.0-rc.23 <0.14.0",
+    "@treeseed/sdk": ">=0.13.0-rc.39 <0.14.0",
+    "@treeseed/ui": ">=0.12.18-rc.1 <0.14.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
