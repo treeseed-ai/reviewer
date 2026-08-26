@@ -10,8 +10,23 @@ verify:
   fast: npm run verify
   local: npm run verify:local
   release: npm run verify
+artifacts:
+  - provider: github
+    name: treeseed-reviewer
 releaseGate:
   workflow: verify.yml
+standards:
+  schemaVersion: 1
+  workflow: { enabled: true }
+  produced:
+    - { id: "@treeseed/reviewer/workplan", family: json-schema, version: "1.0.0", semanticRange: "^1.0.0", source: src/shared/workplan.ts, artifact: .treeseed/standards/workplan.json, verifier: npm run verify }
+  consumed:
+    - { id: "@treeseed/sdk/typescript-public-api", family: typescript, version: "1.0.0", semanticRange: "^1.0.0", source: node_modules/@treeseed/sdk, verifier: npm run verify }
+    - { id: "@treeseed/ui/presentation-catalog", family: behavioral, version: "1.0.0", semanticRange: "^1.0.0", source: node_modules/@treeseed/ui, verifier: npm run verify }
+  guarantees: [loopback-only, local-evidence-custody, immutable-local-tool-artifact]
+  deprecations: []
+  runtimes: [node>=22, browser-loopback]
+  rollbackOperations: [restore-previous-local-artifact]
 projectArchitecture:
   topology: split_site_content
   rootPath: .
