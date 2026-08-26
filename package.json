@@ -44,6 +44,7 @@
     "verify": "npm run check:file-lengths && npm run build:dist && npm run test",
     "verify:local": "npm run verify",
     "verify:direct": "npm run verify",
+    "release:check-tag": "node --import tsx ./scripts/assert-release-tag-version.ts",
     "prepack": "npm run build:dist"
   },
   "dependencies": {
