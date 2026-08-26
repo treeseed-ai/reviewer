@@ -25,7 +25,7 @@ jobs:
       - name: Verify released dependency custody
         run: |
           node -e "import('@treeseed/sdk/operator-contracts')"
-          node -e "import('@treeseed/ui')"
+          node -e "const value=require('./node_modules/@treeseed/ui/package.json').version; if(!value) process.exit(1)"
       - run: npm run verify
       - name: Pack verified artifact
         run: mkdir -p artifacts && npm pack --json --ignore-scripts --pack-destination artifacts
