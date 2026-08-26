@@ -50,7 +50,7 @@
   "dependencies": {
     "@treeseed/cli": ">=0.13.0-rc.23 <0.14.0",
     "@treeseed/sdk": ">=0.13.0-rc.39 <0.14.0",
-    "@treeseed/ui": ">=0.12.17 <0.14.0",
+    "@treeseed/ui": ">=0.12.18-rc.1 <0.14.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "yaml": "^2.8.1"
