@@ -15,6 +15,40 @@ artifacts:
     name: treeseed-reviewer
 releaseGate:
   workflow: verify.yml
+development:
+  schemaVersion: treeseed.development-runtime/v1
+  project: { id: reviewer, repository: treeseed-ai/reviewer }
+  defaults: { leaseSeconds: 14400, restoreOnFailure: true }
+  targets:
+    - id: companion
+      kind: local-companion
+      platforms: [linux-amd64, linux-arm64, darwin-arm64, darwin-amd64]
+      runtimeRequirements: [node>=22, browser]
+      sourceRoots: [src]
+      ignoredPaths: [dist, node_modules]
+      operations:
+        start: { command: npm, args: [run, dev, --, --port, "4174"], environment: {}, timeoutSeconds: 86400 }
+        build: { command: npm, args: [run, build:dist], environment: {}, timeoutSeconds: 900 }
+        verify: { command: npm, args: [run, test], environment: {}, timeoutSeconds: 900 }
+      ready: { kind: http, path: /, expectedStatus: 200, timeoutSeconds: 120 }
+      outputs: []
+      endpoints: [{ id: http, protocol: http, port: 4174, visibility: loopback, authentication: none }]
+      dependencies:
+        - { id: sdk, target: package, locality: local, reaction: rebuild }
+        - { id: ui, target: package, locality: local, reaction: reload }
+      statePolicy: stateless
+      migrationPolicy: none
+      secretRefs: {}
+      shutdown: { graceSeconds: 10, activeWorkPolicy: block }
+      resources: {}
+      logs: [.treeseed/development/companion.log]
+      forbiddenOperations: [public-route, non-loopback-bind, remote-start]
+      freeze:
+        kind: archive
+        operation: { command: npm, args: [pack, --json], environment: {}, timeoutSeconds: 900 }
+        artifacts: [treeseed-reviewer-*.tgz]
+        contractOperations: []
+      promotion: { liveAdmissible: false, candidateRequiresVerification: true }
 standards:
   schemaVersion: 1
   workflow: { enabled: true }
