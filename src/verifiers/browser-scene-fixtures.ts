@@ -8,6 +8,18 @@ const visualMember = {
   password: 'TreeSeedVisualAudit!2026',
 };
 
+export function assertLocalFixtureOrigin(value: string, label: string) {
+  const url = new URL(value);
+  const localHost = url.hostname === 'localhost'
+    || url.hostname === '127.0.0.1'
+    || url.hostname === '[::1]'
+    || url.hostname.endsWith('.localhost')
+    || ['api', 'admin', 'mailpit'].includes(url.hostname);
+  if (!localHost || !['http:', 'https:'].includes(url.protocol)) {
+    throw new Error(`${label} must resolve to a local development origin before Reviewer may create browser fixtures.`);
+  }
+}
+
 async function post(runtime: SceneRuntime, path: string, body: Record<string, unknown>) {
   return fetch(new URL(path, runtime.apiOrigin), {
     method: 'POST',
@@ -24,6 +36,9 @@ function tokenFrom(link: string | null) {
 }
 
 export async function ensureVisualMemberFixture(runtime: SceneRuntime) {
+  assertLocalFixtureOrigin(runtime.apiOrigin, 'API origin');
+  assertLocalFixtureOrigin(runtime.adminOrigin, 'Admin origin');
+  assertLocalFixtureOrigin(runtime.mailpitOrigin, 'Mailpit origin');
   const registrationStarted = Date.now() - 1_000;
   const registration = await post(runtime, '/v1/auth/web/sign-up', {
     email: visualMember.email,
