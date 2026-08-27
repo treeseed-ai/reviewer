@@ -26,7 +26,12 @@ async function text(runtime: SceneRuntime, value: string, expected: boolean) {
 
 export async function runExpectations(runtime: SceneRuntime, source: Record<string, unknown>) {
   const expect = interpolate(source, runtime) as Record<string, any>;
-  if (expect.urlIncludes) await runtime.page.waitForURL((url) => url.href.includes(String(expect.urlIncludes)), { timeout: 15_000 });
+  if (expect.urlIncludes) {
+    const fragment = String(expect.urlIncludes);
+    const deadline = Date.now() + 15_000;
+    while (!runtime.page.url().includes(fragment) && Date.now() < deadline) await new Promise((done) => setTimeout(done, 50));
+    if (!runtime.page.url().includes(fragment)) throw new Error(`Expected browser URL to include ${fragment}; received ${runtime.page.url()}.`);
+  }
   for (const value of values(expect.text)) await text(runtime, String(value), true);
   for (const value of values(expect.notText)) await text(runtime, String(value), false);
   for (const selector of values(expect.visible)) await visible(runtime, selector as SceneSelector, true);
