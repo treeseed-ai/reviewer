@@ -23,13 +23,14 @@ function links(value: string) {
   return [...decoded.matchAll(/https?:\/\/[^\s"'<>]+/giu)].map((match) => match[0]!.replace(/[),.;]+$/u, ''));
 }
 
-async function latest(runtime: SceneRuntime, email: string, subject?: string) {
+async function latest(runtime: SceneRuntime, email: string, subject?: string, after = 0) {
   const origin = runtime.mailpitOrigin.replace(/\/+$/u, '');
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const response = await fetch(`${origin}/api/v1/messages`);
     if (!response.ok) throw new Error(`Mailpit message list returned HTTP ${response.status}.`);
     const found = messages(await response.json()).find((message) => recipients(message).some((entry) => entry.toLowerCase() === email.toLowerCase())
-      && (!subject || String(message?.Subject ?? message?.subject ?? '').toLowerCase().includes(subject.toLowerCase())));
+      && (!subject || String(message?.Subject ?? message?.subject ?? '').toLowerCase().includes(subject.toLowerCase()))
+      && (!after || new Date(String(message?.Created ?? message?.created ?? 0)).getTime() >= after));
     if (found) {
       const id = found.ID ?? found.Id ?? found.id;
       const detail = await fetch(`${origin}/api/v1/message/${encodeURIComponent(String(id))}`);
@@ -41,10 +42,14 @@ async function latest(runtime: SceneRuntime, email: string, subject?: string) {
   throw new Error(`No Mailpit message arrived for ${email}.`);
 }
 
+export async function latestMailpitLink(runtime: SceneRuntime, email: string, subject?: string, after = 0) {
+  const message = await latest(runtime, email, subject, after);
+  return links(body(message)).find((value) => /confirm|reset|invite/iu.test(value)) ?? links(body(message))[0] ?? null;
+}
+
 export async function confirmLatest(runtime: SceneRuntime, raw: any) {
   const email = String(raw.email ?? '');
-  const message = await latest(runtime, email, raw.subjectIncludes ? String(raw.subjectIncludes) : undefined);
-  const link = links(body(message)).find((value) => /confirm|reset|invite/iu.test(value)) ?? links(body(message))[0];
+  const link = await latestMailpitLink(runtime, email, raw.subjectIncludes ? String(raw.subjectIncludes) : undefined);
   if (!link) throw new Error(`No confirmation link was found in the Mailpit message for ${email}.`);
   if (raw.navigate === false) return;
   const target = new URL(link);
