@@ -91,6 +91,10 @@ export async function runAction(runtime: SceneRuntime, source: Record<string, un
   } else if (action.click) {
     await runtime.page.waitForLoadState('load', { timeout: 45_000 });
     const target = locator(runtime.page, action.click);
+    if (action.click.revealWith && !await target.isVisible()) {
+      const reveal = locator(runtime.page, action.click.revealWith);
+      if (await reveal.isVisible()) await reveal.click({ timeout: 15_000 });
+    }
     await target.waitFor({ state: 'visible', timeout: 15_000 });
     await clickAndSettle(runtime, target);
   } else if (action.clickVisibleSequence) {

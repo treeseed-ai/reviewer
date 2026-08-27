@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runAction } from '../../src/verifiers/browser-scene-actions.ts';
+import { browserDeviceProfile, browserDeviceProfiles } from '../../src/verifiers/browser-scene-executor.ts';
 import { consumeExpectedClientErrors, ignoredConsoleSource } from '../../src/verifiers/browser-scene-executor.ts';
 
 describe('browser scene internal fields', () => {
@@ -49,6 +50,17 @@ describe('browser scene click readiness', () => {
     expect(page.waitForNavigation).toHaveBeenCalledWith({ waitUntil: 'domcontentloaded', timeout: 15_000 });
     expect(target.click).toHaveBeenCalledWith({ timeout: 15_000 });
   });
+
+  it('opens a declared responsive shell before clicking its hidden target', async () => {
+    const target = { isVisible: vi.fn().mockResolvedValue(false), waitFor: vi.fn(), click: vi.fn(), evaluate: vi.fn().mockResolvedValue('none') };
+    const reveal = { isVisible: vi.fn().mockResolvedValue(true), click: vi.fn() };
+    const page = { waitForLoadState: vi.fn(), getByRole: vi.fn((_role, { name }) => ({ first: () => name === 'Sign out' ? target : reveal })) };
+
+    await runAction({ page } as any, { click: { role: 'button', name: 'Sign out', revealWith: { role: 'button', name: 'Open team operations' } } });
+
+    expect(reveal.click).toHaveBeenCalledWith({ timeout: 15_000 });
+    expect(target.waitFor).toHaveBeenCalledWith({ state: 'visible', timeout: 15_000 });
+  });
 });
 
 describe('browser scene select readiness', () => {
@@ -62,6 +74,15 @@ describe('browser scene select readiness', () => {
 
     expect(page.waitForNavigation).toHaveBeenCalledWith({ waitUntil: 'domcontentloaded', timeout: 15_000 });
     expect(target.selectOption).toHaveBeenCalledWith({ label: 'Personal theme' }, { timeout: 15_000 });
+  });
+});
+
+describe('browser device profiles', () => {
+  it('uses the declared Admin viewport and rejects unknown profiles', () => {
+    expect(browserDeviceProfiles.tablet_chromium).toEqual({ viewport: { width: 820, height: 1180 }, isMobile: true, hasTouch: true });
+    expect(browserDeviceProfiles.mobile_chromium.viewport).toEqual({ width: 390, height: 844 });
+    expect(browserDeviceProfile('desktop_chromium')).toBe('desktop_chromium');
+    expect(() => browserDeviceProfile('desktop_chromium_typo')).toThrow(/Unsupported browser device profile/u);
   });
 });
 

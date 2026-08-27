@@ -8,6 +8,19 @@ import { sanitizeBrowserTrace } from './browser-trace-redaction.ts';
 import { ensureVisualMemberFixture } from './browser-scene-fixtures.ts';
 import type { SceneCase, SceneCheck, SceneRuntime } from './browser-scene-types.ts';
 
+export const browserDeviceProfiles = {
+  desktop_chromium: { viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false },
+  tablet_chromium: { viewport: { width: 820, height: 1180 }, isMobile: true, hasTouch: true },
+  mobile_chromium: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
+} as const;
+
+export type BrowserDeviceProfile = keyof typeof browserDeviceProfiles;
+
+export function browserDeviceProfile(value: string): BrowserDeviceProfile {
+  if (value in browserDeviceProfiles) return value as BrowserDeviceProfile;
+  throw new Error(`Unsupported browser device profile ${value}.`);
+}
+
 function browserExecutable(explicit?: string) {
   const candidates = [explicit, process.env.TREESEED_CHROMIUM_EXECUTABLE, '/usr/bin/google-chrome-stable', '/usr/bin/google-chrome', '/usr/bin/chromium'];
   const found = candidates.find((entry): entry is string => Boolean(entry && existsSync(entry)));
@@ -81,11 +94,14 @@ export async function executeBrowserScenes(input: {
   mailpitOrigin: string;
   evidenceRoot: string;
   runId: string;
+  deviceProfile?: BrowserDeviceProfile;
   executablePath?: string;
 }) {
   mkdirSync(input.evidenceRoot, { recursive: true });
   const browser = await chromium.launch({ executablePath: browserExecutable(input.executablePath), headless: true });
-  const context = await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true });
+  const selectedProfile = input.deviceProfile ?? 'desktop_chromium';
+  const deviceId = selectedProfile.replaceAll('_', '-');
+  const context = await browser.newContext({ ...browserDeviceProfiles[selectedProfile], ignoreHTTPSErrors: true });
   const page = await context.newPage(), consoleErrors: string[] = [], requestErrors: string[] = [];
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
@@ -104,7 +120,7 @@ export async function executeBrowserScenes(input: {
   page.on('response', (response) => { if (response.status() >= 500) requestErrors.push(`${response.request().method()} ${new URL(response.url()).pathname}: HTTP ${response.status()}`); });
   const tracePath = resolve(input.evidenceRoot, 'trace.zip');
   await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
-  const runtime: SceneRuntime = { ...input, runShort: input.runId.replace(/[^a-z0-9]/giu, '').slice(-10), deviceId: 'desktop-chromium', page, context, consoleErrors, requestErrors };
+  const runtime: SceneRuntime = { ...input, runShort: input.runId.replace(/[^a-z0-9]/giu, '').slice(-10), deviceId, page, context, consoleErrors, requestErrors };
   const checks: SceneCheck[] = [];
   try {
     await ensureVisualMemberFixture(runtime);
