@@ -51,6 +51,22 @@ async function createBrowserSession(runtime: SceneRuntime, raw: any) {
   }
 }
 
+async function settleEnhancedSubmission(target: ReturnType<typeof locator>) {
+  await target.evaluate((element) => {
+    const form = element instanceof HTMLButtonElement || element instanceof HTMLInputElement ? element.form : element.closest('form');
+    if (!form || form.dataset.tsSubmit !== 'enhanced') return;
+    return new Promise<void>((resolve) => {
+      const started = Date.now();
+      const timer = setInterval(() => {
+        if (!form.isConnected || !form.hasAttribute('aria-busy') || Date.now() - started >= 15_000) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 10);
+    });
+  }).catch(() => undefined);
+}
+
 export async function runAction(runtime: SceneRuntime, source: Record<string, unknown>) {
   const action = interpolate(source, runtime) as Record<string, any>;
   if (action.goto !== undefined) {
@@ -60,11 +76,13 @@ export async function runAction(runtime: SceneRuntime, source: Record<string, un
     await runtime.page.waitForLoadState('load', { timeout: 45_000 });
     const target = locator(runtime.page, action.click);
     await target.waitFor({ state: 'visible', timeout: 15_000 }); await target.click({ timeout: 15_000 });
+    await settleEnhancedSubmission(target);
   } else if (action.clickVisibleSequence) {
     await runtime.page.waitForLoadState('load', { timeout: 45_000 });
     for (const selector of action.clickVisibleSequence) {
       const target = locator(runtime.page, selector);
       await target.waitFor({ state: 'visible', timeout: 15_000 }); await target.click({ timeout: 15_000 });
+      await settleEnhancedSubmission(target);
     }
   } else if (action.fill) await fill(runtime, action.fill);
   else if (action.select) {
