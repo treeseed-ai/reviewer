@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runAction } from '../../src/verifiers/browser-scene-actions.ts';
-import { ignoredConsoleSource } from '../../src/verifiers/browser-scene-executor.ts';
+import { consumeExpectedClientErrors, ignoredConsoleSource } from '../../src/verifiers/browser-scene-executor.ts';
 
 describe('browser scene internal fields', () => {
   it('sets attached internal fields without using a visibility-gated fill', async () => {
@@ -21,5 +21,11 @@ describe('optional browser resources', () => {
     expect(ignoredConsoleSource('https://admin.treeseed.localhost/favicon.svg')).toBe(true);
     expect(ignoredConsoleSource('https://admin.treeseed.localhost/v1/auth/web/preferences')).toBe(false);
     expect(ignoredConsoleSource('not a URL')).toBe(false);
+  });
+
+  it('consumes only source-scoped errors added by an expected negative step', () => {
+    const errors = ['existing', '/app/teams/one/edit: Failed to load resource', '/v1/auth/web/preferences: Failed to load resource'];
+    consumeExpectedClientErrors(errors, 1, '/edit');
+    expect(errors).toEqual(['existing', '/v1/auth/web/preferences: Failed to load resource']);
   });
 });

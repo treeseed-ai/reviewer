@@ -23,6 +23,12 @@ export function ignoredConsoleSource(source: string) {
   }
 }
 
+export function consumeExpectedClientErrors(errors: string[], start: number, sourcePathIncludes?: string) {
+  if (!sourcePathIncludes) return;
+  const retained = errors.slice(start).filter((entry) => !entry.startsWith('/') || !entry.split(':', 1)[0]!.includes(sourcePathIncludes));
+  errors.splice(start, errors.length - start, ...retained);
+}
+
 async function ensureAuthentication(sceneCase: SceneCase, runtime: SceneRuntime) {
   const auth = sceneCase.scene.setup?.auth;
   if (auth?.role === 'anonymous') { await runtime.context.clearCookies(); return; }
@@ -48,8 +54,10 @@ async function executeScene(sceneCase: SceneCase, runtime: SceneRuntime): Promis
   try {
     await ensureAuthentication(sceneCase, runtime);
     for (const step of sceneCase.scene.workflow ?? []) {
+      const stepConsoleStart = runtime.consoleErrors.length;
       await runAction(runtime, step.action ?? {});
       await runExpectations(runtime, step.expect ?? {});
+      consumeExpectedClientErrors(runtime.consoleErrors, stepConsoleStart, step.expect?.clientErrorSourceIncludes);
       const path = screenshotPath(runtime, sceneCase.scene.id, step.id);
       await runtime.page.screenshot({ path, fullPage: true }); evidence.push(path);
     }
@@ -80,7 +88,8 @@ export async function executeBrowserScenes(input: {
     if (message.type() !== 'error') return;
     const source = message.location().url;
     if (ignoredConsoleSource(source)) return;
-    consoleErrors.push(redactedError(message.text()));
+    const path = source ? new URL(source).pathname : '';
+    consoleErrors.push(`${path ? `${path}: ` : ''}${redactedError(message.text())}`);
   });
   page.on('pageerror', (error) => consoleErrors.push(redactedError(error)));
   page.on('requestfailed', (request) => {
