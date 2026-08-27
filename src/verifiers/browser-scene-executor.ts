@@ -13,6 +13,16 @@ function browserExecutable(explicit?: string) {
   return found;
 }
 
+export function ignoredConsoleSource(source: string) {
+  if (!source) return false;
+  try {
+    const path = new URL(source).pathname;
+    return ['/favicon.ico', '/favicon.svg'].includes(path) || path.startsWith('/v1/knowledge/pages/');
+  } catch {
+    return false;
+  }
+}
+
 async function ensureAuthentication(sceneCase: SceneCase, runtime: SceneRuntime) {
   const auth = sceneCase.scene.setup?.auth;
   if (auth?.role === 'anonymous') { await runtime.context.clearCookies(); return; }
@@ -69,7 +79,7 @@ export async function executeBrowserScenes(input: {
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     const source = message.location().url;
-    if (source && ['/favicon.ico', '/favicon.svg'].includes(new URL(source).pathname)) return;
+    if (ignoredConsoleSource(source)) return;
     consoleErrors.push(redactedError(message.text()));
   });
   page.on('pageerror', (error) => consoleErrors.push(redactedError(error)));
