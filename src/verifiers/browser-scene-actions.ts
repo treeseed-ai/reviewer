@@ -67,6 +67,22 @@ async function settleEnhancedSubmission(target: ReturnType<typeof locator>) {
   }).catch(() => undefined);
 }
 
+async function clickAndSettle(runtime: SceneRuntime, target: ReturnType<typeof locator>) {
+  const submission = await target.evaluate((element) => {
+    const form = element instanceof HTMLButtonElement || element instanceof HTMLInputElement ? element.form : element.closest('form');
+    if (!form) return 'none';
+    return form.dataset.tsSubmit === 'enhanced' ? 'enhanced' : 'regular';
+  }).catch(() => 'none');
+  if (submission === 'regular') {
+    const navigation = runtime.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15_000 }).catch(() => undefined);
+    await target.click({ timeout: 15_000 });
+    await navigation;
+    return;
+  }
+  await target.click({ timeout: 15_000 });
+  if (submission === 'enhanced') await settleEnhancedSubmission(target);
+}
+
 export async function runAction(runtime: SceneRuntime, source: Record<string, unknown>) {
   const action = interpolate(source, runtime) as Record<string, any>;
   if (action.goto !== undefined) {
@@ -75,14 +91,14 @@ export async function runAction(runtime: SceneRuntime, source: Record<string, un
   } else if (action.click) {
     await runtime.page.waitForLoadState('load', { timeout: 45_000 });
     const target = locator(runtime.page, action.click);
-    await target.waitFor({ state: 'visible', timeout: 15_000 }); await target.click({ timeout: 15_000 });
-    await settleEnhancedSubmission(target);
+    await target.waitFor({ state: 'visible', timeout: 15_000 });
+    await clickAndSettle(runtime, target);
   } else if (action.clickVisibleSequence) {
     await runtime.page.waitForLoadState('load', { timeout: 45_000 });
     for (const selector of action.clickVisibleSequence) {
       const target = locator(runtime.page, selector);
-      await target.waitFor({ state: 'visible', timeout: 15_000 }); await target.click({ timeout: 15_000 });
-      await settleEnhancedSubmission(target);
+      await target.waitFor({ state: 'visible', timeout: 15_000 });
+      await clickAndSettle(runtime, target);
     }
   } else if (action.fill) await fill(runtime, action.fill);
   else if (action.select) {
