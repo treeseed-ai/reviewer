@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -172,17 +172,11 @@ describe('evidence and route coverage', () => {
     writeFileSync(resolve(uiRoot, 'data.json'), '{}');
     writeFileSync(resolve(uiRoot, 'image.png'), 'png');
     writeFileSync(resolve(uiRoot, 'file.bin'), 'bin');
-    mkdirSync(resolve(root, 'node_modules/.bin'), { recursive: true });
-    const shim = resolve(root, 'node_modules/.bin/trsd');
-    writeFileSync(shim, `#!/usr/bin/env node
-if (process.argv.includes('plan')) {
-  console.log(JSON.stringify({ ok: true, source: 'plan-route' }));
-  process.exit(0);
-}
-console.log(JSON.stringify({ ok: true, source: 'run-route' }));
-process.exit(0);
-`);
-    chmodSync(shim, 0o755);
+    mkdirSync(resolve(root, 'scripts'), { recursive: true });
+    const planShim = resolve(root, 'scripts/plan-composition-guarantees.mjs');
+    const runShim = resolve(root, 'scripts/run-composition-guarantees.mjs');
+    writeFileSync(planShim, `console.log(JSON.stringify({ ok: true, source: 'plan-route' }));\n`);
+    writeFileSync(runShim, `console.log(JSON.stringify({ ok: true, source: 'run-route' }));\n`);
     writeRun(root, baseReport(root, [baseResult()]));
     const task: ReviewerTask = { id: 'running', status: 'running', command: [], startedAt: '', stdout: [], stderr: [], output: [], lastOutputAt: '' };
     const context = { workspaceRoot: root, uiRoot, version: 'test', tasks: new Map([[task.id, task]]) };
@@ -199,12 +193,10 @@ process.exit(0);
     expect((await fetch(`${baseUrl}/api/guarantee-catalog`)).status).toBe(200);
     const plan = await fetch(`${baseUrl}/api/guarantee-runs/plan`, { method: 'POST', body: JSON.stringify({ environment: 'local', filter: {}, includeDependencies: true, includePlanned: false }) });
     expect(plan.status).toBe(200);
-    writeFileSync(shim, '#!/usr/bin/env node\nprocess.exit(3);\n');
-    chmodSync(shim, 0o755);
+    writeFileSync(planShim, 'process.exit(3);\n');
     const failedPlan = await fetch(`${baseUrl}/api/guarantee-runs/plan`, { method: 'POST' });
     expect(failedPlan.status).toBe(500);
-    writeFileSync(shim, '#!/usr/bin/env node\nconsole.log(JSON.stringify({ ok: true }));\n');
-    chmodSync(shim, 0o755);
+    writeFileSync(runShim, 'console.log(JSON.stringify({ ok: true }));\n');
     const run = await fetch(`${baseUrl}/api/guarantee-runs/run`, { method: 'POST', body: JSON.stringify({ environment: 'local', filter: {}, includeDependencies: true, includePlanned: false, record: false, sceneArtifacts: 'screenshots', evidenceTarget: 'local' }) });
     expect(run.status).toBe(202);
     expect((await fetch(`${baseUrl}/app.js`)).headers.get('content-type')).toContain('text/javascript');
@@ -243,4 +235,3 @@ process.exit(0);
     expect((await fetch(unbuiltUrl)).status).toBe(503);
   });
 });
-

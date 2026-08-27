@@ -57,7 +57,8 @@ standards:
   consumed:
     - { id: "@treeseed/sdk/typescript-public-api", family: typescript, version: "1.0.0", semanticRange: "^1.0.0", source: node_modules/@treeseed/sdk, verifier: npm run verify }
     - { id: "@treeseed/ui/presentation-catalog", family: behavioral, version: "1.0.0", semanticRange: "^1.0.0", source: node_modules/@treeseed/ui, verifier: npm run verify }
-  guarantees: [loopback-only, local-evidence-custody, immutable-local-tool-artifact]
+    - { id: "@treeseed/platform/composition-guarantee-run", family: behavioral, version: "1.0.0", semanticRange: "^1.0.0", source: .treeseed/guarantees/runs, verifier: npm run verify }
+  guarantees: [loopback-only, local-evidence-custody, immutable-local-tool-artifact, platform-run-bundle-consumer]
   deprecations: []
   runtimes: [node>=22, browser-loopback]
   rollbackOperations: [restore-previous-local-artifact]

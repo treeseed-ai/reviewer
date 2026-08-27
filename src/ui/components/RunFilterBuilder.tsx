@@ -18,18 +18,18 @@ export function defaultRunRequest(): ReviewerGuaranteeRunRequest {
 }
 
 function commandPreview(value: ReviewerGuaranteeRunRequest) {
-  const parts = ['trsd', 'guarantees', 'run', '--environment', value.environment];
+  const parts = ['npm', 'run', 'guarantees:run', '--', '--environment', value.environment];
   const filter = value.filter;
-  if (filter.ownerPackage) parts.push('--owner-package', filter.ownerPackage);
-  if (filter.gate) parts.push('--gate', String(filter.gate));
-  if (filter.status) parts.push('--status', String(filter.status));
-  if (filter.type) parts.push('--type', filter.type);
-  if (filter.subtype) parts.push('--subtype', filter.subtype);
-  for (const id of filter.ids ?? []) parts.push('--id', id);
+  if (filter.ownerPackage) parts.push('--guarantee-owner-package', filter.ownerPackage);
+  if (filter.gate) parts.push('--gates', String(filter.gate));
+  if (filter.status) parts.push('--statuses', String(filter.status));
+  else if (value.includePlanned) parts.push('--statuses', 'active,planned');
+  if (filter.type) parts.push('--types', filter.type);
+  if (filter.subtype) parts.push('--subtypes', filter.subtype);
+  if (filter.ids?.length) parts.push('--ids', filter.ids.join(','));
   if (!value.includeDependencies) parts.push('--no-dependencies');
-  if (value.includePlanned) parts.push('--include-planned');
   if (value.record) parts.push('--record');
-  parts.push('--scene-artifacts', value.sceneArtifacts, '--evidence-target', value.evidenceTarget, '--json');
+  parts.push('--scene-artifacts', value.sceneArtifacts, '--evidence-target', value.evidenceTarget);
   return parts.join(' ');
 }
 

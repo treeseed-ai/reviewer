@@ -218,9 +218,10 @@ describe('guarantee run discovery', () => {
       evidenceTarget: 'local',
     });
     expect(args).toContain('--no-dependencies');
-    expect(args).toContain('--include-planned');
+    expect(args).toContain('--statuses');
     expect(args).toContain('--scene-artifacts');
     expect(args).toContain('full');
-    expect(args.filter((entry) => entry === '--id')).toHaveLength(2);
+    expect(args).toContain('--ids');
+    expect(args).toContain('a,b');
   });
 });
