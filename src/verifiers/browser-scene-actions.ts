@@ -104,7 +104,11 @@ export async function runAction(runtime: SceneRuntime, source: Record<string, un
   else if (action.select) {
     const target = locator(runtime.page, action.select);
     await target.waitFor({ state: 'attached', timeout: 15_000 });
+    const navigation = action.select.settleNavigation === true
+      ? runtime.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15_000 }).catch(() => undefined)
+      : Promise.resolve();
     await target.selectOption(action.select.value ?? { label: action.select.label }, { timeout: 15_000 });
+    await navigation;
   } else if (action.keyboard) await runtime.page.keyboard.press(String(action.keyboard));
   else if (action.pause?.mode === 'timed') await new Promise((done) => setTimeout(done, Math.min(Number(action.pause.durationSeconds ?? 0), 5) * 1000));
   else if (action.apiRequest) await apiRequest(runtime, action.apiRequest);

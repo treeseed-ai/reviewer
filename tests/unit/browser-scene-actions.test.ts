@@ -51,6 +51,20 @@ describe('browser scene click readiness', () => {
   });
 });
 
+describe('browser scene select readiness', () => {
+  it('settles an explicitly declared navigation caused by selection', async () => {
+    let finishNavigation!: () => void;
+    const navigation = new Promise<void>((resolve) => { finishNavigation = resolve; });
+    const target = { waitFor: vi.fn(), selectOption: vi.fn(async () => finishNavigation()) };
+    const page = { waitForNavigation: vi.fn().mockReturnValue(navigation), getByRole: vi.fn().mockReturnValue({ first: () => target }) };
+
+    await runAction({ page } as any, { select: { role: 'combobox', name: 'Color scheme', label: 'Personal theme', settleNavigation: true } });
+
+    expect(page.waitForNavigation).toHaveBeenCalledWith({ waitUntil: 'domcontentloaded', timeout: 15_000 });
+    expect(target.selectOption).toHaveBeenCalledWith({ label: 'Personal theme' }, { timeout: 15_000 });
+  });
+});
+
 describe('optional browser resources', () => {
   it('allows only favicon and optional knowledge page console sources', () => {
     expect(ignoredConsoleSource('https://admin.treeseed.localhost/v1/knowledge/pages/account.identity')).toBe(true);
