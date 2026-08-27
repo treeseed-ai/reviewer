@@ -38,9 +38,7 @@ async function createBrowserSession(runtime: SceneRuntime, raw: any) {
   try {
     const page = await context.newPage();
     await page.goto(new URL('/auth/sign-in', runtime.adminOrigin).toString(), { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await page.getByRole('textbox', { name: 'Email or username' }).fill(String(raw.identifier));
-    await page.locator('input[name="password"]').fill(String(raw.password));
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Continue to sign in' }).click();
     await page.waitForURL((url) => url.pathname === '/auth/authorize', { timeout: 15_000 });
     await page.getByRole('textbox', { name: 'Email or username' }).fill(String(raw.identifier));
     await page.locator('input[name="password"]').fill(String(raw.password));
