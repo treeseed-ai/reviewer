@@ -11,12 +11,16 @@ describe('browser scene URL expectations', () => {
     expect(waitForURL).not.toHaveBeenCalled();
   });
 
-  it('waits through DOMContentLoaded when the expected URL is not current yet', async () => {
-    const waitForURL = vi.fn().mockResolvedValue(undefined);
-    const runtime = { page: { url: () => 'https://admin.treeseed.localhost/auth/check-email', waitForURL } } as any;
+  it('polls current location without coupling the assertion to a navigation lifecycle', async () => {
+    const waitForURL = vi.fn();
+    const url = vi.fn()
+      .mockReturnValueOnce('https://admin.treeseed.localhost/auth/check-email')
+      .mockReturnValue('https://admin.treeseed.localhost/auth/confirm-email?token=redacted');
+    const runtime = { page: { url, waitForURL } } as any;
 
     await runExpectations(runtime, { urlIncludes: '/auth/confirm-email' });
 
-    expect(waitForURL).toHaveBeenCalledWith(expect.any(Function), { timeout: 15_000, waitUntil: 'domcontentloaded' });
+    expect(url).toHaveBeenCalledTimes(3);
+    expect(waitForURL).not.toHaveBeenCalled();
   });
 });
