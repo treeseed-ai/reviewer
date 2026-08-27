@@ -1,0 +1,51 @@
+import { randomUUID } from 'node:crypto';
+import { latestMailpitLink } from './browser-scene-mailpit.ts';
+import type { SceneRuntime } from './browser-scene-types.ts';
+
+const visualMember = {
+  email: 'visual.member@treeseed.io',
+  username: 'visual-member',
+  password: 'TreeSeedVisualAudit!2026',
+};
+
+async function post(runtime: SceneRuntime, path: string, body: Record<string, unknown>) {
+  return fetch(new URL(path, runtime.apiOrigin), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'idempotency-key': randomUUID() },
+    body: JSON.stringify(body),
+  });
+}
+
+function tokenFrom(link: string | null) {
+  if (!link) throw new Error('Fixture credential message did not contain a token link.');
+  const token = new URL(link).searchParams.get('token');
+  if (!token) throw new Error('Fixture credential link did not contain a token.');
+  return token;
+}
+
+export async function ensureVisualMemberFixture(runtime: SceneRuntime) {
+  const registrationStarted = Date.now() - 1_000;
+  const registration = await post(runtime, '/v1/auth/web/sign-up', {
+    email: visualMember.email,
+    username: visualMember.username,
+    password: visualMember.password,
+    displayName: 'Visual Member',
+    firstName: 'Visual',
+    lastName: 'Member',
+    returnTo: '/app/',
+  });
+  if (registration.ok) {
+    const link = await latestMailpitLink(runtime, visualMember.email, 'Confirm your TreeSeed email', registrationStarted);
+    const confirmation = await post(runtime, '/v1/auth/web/confirm-email', { token: tokenFrom(link) });
+    if (!confirmation.ok) throw new Error(`Visual member confirmation returned HTTP ${confirmation.status}.`);
+  } else if (registration.status !== 409) {
+    throw new Error(`Visual member registration returned HTTP ${registration.status}.`);
+  }
+
+  const resetStarted = Date.now() - 1_000;
+  const requested = await post(runtime, '/v1/auth/web/password-reset/request', { email: visualMember.email });
+  if (!requested.ok) throw new Error(`Visual member password reset request returned HTTP ${requested.status}.`);
+  const resetLink = await latestMailpitLink(runtime, visualMember.email, 'Reset your TreeSeed password', resetStarted);
+  const reset = await post(runtime, '/v1/auth/web/password-reset/complete', { token: tokenFrom(resetLink), newPassword: visualMember.password });
+  if (!reset.ok) throw new Error(`Visual member password reset returned HTTP ${reset.status}.`);
+}

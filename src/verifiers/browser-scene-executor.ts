@@ -5,6 +5,7 @@ import { runAction } from './browser-scene-actions.ts';
 import { runExpectations } from './browser-scene-expectations.ts';
 import { redactedError, screenshotPath } from './browser-scene-runtime.ts';
 import { sanitizeBrowserTrace } from './browser-trace-redaction.ts';
+import { ensureVisualMemberFixture } from './browser-scene-fixtures.ts';
 import type { SceneCase, SceneCheck, SceneRuntime } from './browser-scene-types.ts';
 
 function browserExecutable(explicit?: string) {
@@ -105,6 +106,7 @@ export async function executeBrowserScenes(input: {
   const runtime: SceneRuntime = { ...input, runShort: input.runId.replace(/[^a-z0-9]/giu, '').slice(-10), deviceId: 'desktop-chromium', page, context, consoleErrors, requestErrors };
   const checks: SceneCheck[] = [];
   try {
+    await ensureVisualMemberFixture(runtime);
     for (const sceneCase of input.scenes.values()) {
       const blockers = sceneCase.dependsOn.filter((dependency) => checks.some((check) => check.id === dependency && check.status !== 'passed'));
       if (blockers.length) {
