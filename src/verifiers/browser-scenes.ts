@@ -2,7 +2,7 @@
 import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { loadActiveIdentityTeamScenes, resolveAdminPackageRoot } from './browser-scene-catalog.ts';
-import { browserDeviceProfile, executeBrowserScenes } from './browser-scene-executor.ts';
+import { browserDeviceProfileMatrix, executeBrowserScenes } from './browser-scene-executor.ts';
 
 function option(name: string, fallback = '') {
   const index = process.argv.indexOf(`--${name}`);
@@ -15,12 +15,17 @@ const adminOrigin = option('admin-origin', process.env.TREESEED_ADMIN_BASE_URL ?
 const apiOrigin = option('api-origin', process.env.TREESEED_API_BASE_URL ?? 'https://api.treeseed.localhost');
 const mailpitOrigin = option('mailpit-origin', process.env.TREESEED_MAILPIT_BASE_URL ?? 'http://127.0.0.1:8025');
 const evidenceRoot = resolve(option('evidence-root', `.treeseed/guarantees/browser-scenes/${runId}`));
-const deviceProfile = browserDeviceProfile(option('device-profile', 'desktop_chromium'));
+const legacyProfile = option('device-profile');
+const deviceProfiles = browserDeviceProfileMatrix(option('device-profiles', legacyProfile));
 
-let checks: Awaited<ReturnType<typeof executeBrowserScenes>>;
+let checks: Awaited<ReturnType<typeof executeBrowserScenes>> = [];
 try {
   const adminRoot = resolveAdminPackageRoot(option('admin-package-root'));
-  checks = await executeBrowserScenes({ scenes: loadActiveIdentityTeamScenes(adminRoot), adminOrigin, apiOrigin, mailpitOrigin, evidenceRoot, runId, deviceProfile, executablePath: option('browser-executable') });
+  for (const deviceProfile of deviceProfiles) {
+    const deviceRunId = `${runId}-${deviceProfile.replaceAll('_', '-')}`;
+    const profileChecks = await executeBrowserScenes({ scenes: loadActiveIdentityTeamScenes(adminRoot), adminOrigin, apiOrigin, mailpitOrigin, evidenceRoot: resolve(evidenceRoot, deviceProfile), runId: deviceRunId, deviceProfile, executablePath: option('browser-executable') });
+    checks.push(...profileChecks.map((check) => ({ ...check, id: `${deviceProfile}:${check.id}` })));
+  }
 } catch (error) {
   checks = [{ id: 'admin.browser-scenes.setup', status: 'failed', durationMs: 0, error: error instanceof Error ? error.message : String(error) }];
 }
@@ -29,7 +34,7 @@ const report = {
   verifierId: '@treeseed/reviewer/admin-browser-scenes',
   startedAt,
   completedAt: new Date().toISOString(),
-  environment: { adminOrigin, apiOrigin, mailpitOrigin, deviceProfile },
+  environment: { adminOrigin, apiOrigin, mailpitOrigin, deviceProfiles },
   ok: checks.every((entry) => entry.status === 'passed'),
   checks,
 };
