@@ -52,13 +52,11 @@ async function ensureAuthentication(sceneCase: SceneCase, runtime: SceneRuntime)
     return;
   }
   if (auth.role === 'owner') await runtime.context.clearCookies();
-  await runtime.page.goto(new URL('/app/', runtime.adminOrigin).toString(), { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  if (!runtime.page.url().includes('/auth/sign-in')) return;
-	await runtime.page.getByRole('button', { name: 'Continue to sign in' }).click();
-	await runtime.page.waitForURL((url) => url.pathname === '/auth/authorize', { timeout: 15_000 });
+	await runtime.page.goto(new URL('/app/', runtime.adminOrigin).toString(), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+	if (!runtime.page.url().includes('/auth/sign-in')) return;
 	await runtime.page.getByRole('textbox', { name: 'Email or username' }).fill(`guarantee-${runtime.runId}-${runtime.deviceId}@treeseed.local`);
 	await runtime.page.locator('input[name="password"]').fill('TreeSeedGuaranteeReset123!');
-	await runtime.page.getByRole('button', { name: 'Approve' }).click();
+	await runtime.page.getByRole('button', { name: 'Sign in' }).click();
   await runtime.page.waitForURL((url) => url.pathname.startsWith('/app'), { timeout: 15_000 });
 }
 
