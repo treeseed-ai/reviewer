@@ -36,6 +36,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "npm run build:dist",
     "build:dist": "vite build && node --import tsx ./scripts/build-server.ts",
+    "release:custody": "node --import tsx ./scripts/release-custody.ts",
     "check:file-lengths": "node --import tsx ./scripts/check-file-lengths.ts && npm run check:file-architecture",
     "check:file-architecture": "node --import tsx ./scripts/check-file-architecture.ts",
     "lint": "npm run check:file-lengths && npm run build:dist",
