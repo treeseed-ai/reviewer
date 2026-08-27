@@ -4,6 +4,7 @@ import { chromium } from 'playwright-core';
 import { runAction } from './browser-scene-actions.ts';
 import { runExpectations } from './browser-scene-expectations.ts';
 import { redactedError, screenshotPath } from './browser-scene-runtime.ts';
+import { sanitizeBrowserTrace } from './browser-trace-redaction.ts';
 import type { SceneCase, SceneCheck, SceneRuntime } from './browser-scene-types.ts';
 
 function browserExecutable(explicit?: string) {
@@ -122,6 +123,7 @@ export async function executeBrowserScenes(input: {
     await context.tracing.stop({ path: tracePath }).catch(() => undefined);
     await context.close().catch(() => undefined); await browser.close().catch(() => undefined);
   }
+  sanitizeBrowserTrace(tracePath);
   for (const check of checks) {
     check.evidence?.push(tracePath);
     check.evidence = check.evidence?.map((path) => relative(input.evidenceRoot, path));
