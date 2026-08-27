@@ -4,7 +4,7 @@ import { consumeExpectedClientErrors, ignoredConsoleSource } from '../../src/ver
 
 describe('browser scene internal fields', () => {
   it('sets attached internal fields without using a visibility-gated fill', async () => {
-    const target = { waitFor: vi.fn(), evaluate: vi.fn(), fill: vi.fn() };
+    const target = { waitFor: vi.fn(), isVisible: vi.fn().mockResolvedValue(false), evaluate: vi.fn(), fill: vi.fn() };
     const page = { locator: vi.fn().mockReturnValue({ first: () => target }) };
 
     await runAction({ page } as any, { fill: { css: 'input[type="hidden"]', internal: true, value: 'stale-v1' } });
@@ -13,6 +13,14 @@ describe('browser scene internal fields', () => {
     expect(target.evaluate).toHaveBeenCalledWith(expect.any(Function), 'stale-v1');
     expect(target.fill).not.toHaveBeenCalled();
   });
+
+	it('uses user-like fill semantics for visible fields selected internally', async () => {
+		const target = { waitFor: vi.fn(), isVisible: vi.fn().mockResolvedValue(true), evaluate: vi.fn(), fill: vi.fn() };
+		const page = { locator: vi.fn().mockReturnValue({ first: () => target }) };
+		await runAction({ page } as any, { fill: { css: 'input[type="password"]', internal: true, value: 'correct-password' } });
+		expect(target.fill).toHaveBeenCalledWith('correct-password', { timeout: 15_000 });
+		expect(target.evaluate).not.toHaveBeenCalled();
+	});
 });
 
 describe('optional browser resources', () => {
