@@ -18,6 +18,30 @@ async function apiRequest(runtime: SceneRuntime, raw: any) {
   if (response.status !== expected) throw new Error(`Scene API request expected HTTP ${expected}, received ${response.status}.`);
 }
 
+async function createBrowserSession(runtime: SceneRuntime, raw: any) {
+  const browser = runtime.context.browser();
+  if (!browser) throw new Error('The browser session runtime is unavailable.');
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    userAgent: String(raw.userAgent ?? 'TreeSeed Guarantee Additional Session'),
+    extraHTTPHeaders: raw.clientIp ? { 'x-forwarded-for': String(raw.clientIp) } : {},
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(new URL('/auth/sign-in', runtime.adminOrigin).toString(), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.getByRole('textbox', { name: 'Email or username' }).fill(String(raw.identifier));
+    await page.locator('input[name="password"]').fill(String(raw.password));
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.waitForURL((url) => url.pathname === '/auth/authorize', { timeout: 15_000 });
+    await page.getByRole('textbox', { name: 'Email or username' }).fill(String(raw.identifier));
+    await page.locator('input[name="password"]').fill(String(raw.password));
+    await page.getByRole('button', { name: 'Approve' }).click();
+    await page.waitForURL((url) => url.pathname.startsWith('/app'), { timeout: 15_000 });
+  } finally {
+    await context.close();
+  }
+}
+
 export async function runAction(runtime: SceneRuntime, source: Record<string, unknown>) {
   const action = interpolate(source, runtime) as Record<string, any>;
   if (action.goto !== undefined) {
@@ -39,6 +63,7 @@ export async function runAction(runtime: SceneRuntime, source: Record<string, un
   } else if (action.keyboard) await runtime.page.keyboard.press(String(action.keyboard));
   else if (action.pause?.mode === 'timed') await new Promise((done) => setTimeout(done, Math.min(Number(action.pause.durationSeconds ?? 0), 5) * 1000));
   else if (action.apiRequest) await apiRequest(runtime, action.apiRequest);
+  else if (action.createBrowserSession) await createBrowserSession(runtime, action.createBrowserSession);
   else if (action.mailpitConfirmLatest) await confirmLatest(runtime, action.mailpitConfirmLatest);
   else throw new Error(`Unsupported scene action: ${Object.keys(action).join(', ') || 'empty'}.`);
 }
