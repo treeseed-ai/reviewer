@@ -5,6 +5,15 @@ import type { SceneRuntime, SceneSelector } from './browser-scene-types.ts';
 async function fill(runtime: SceneRuntime, raw: any) {
   const target = locator(runtime.page, raw as SceneSelector);
   await target.waitFor({ state: 'attached', timeout: 15_000 });
+  if (raw.internal === true) {
+    await target.evaluate((element, value) => {
+      if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) throw new Error('Internal fill requires an input or textarea.');
+      element.value = String(value);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    }, String(raw.value ?? ''));
+    return;
+  }
   await target.fill(String(raw.value ?? ''), { timeout: 15_000 });
 }
 
