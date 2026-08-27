@@ -30,9 +30,24 @@ jobs:
       - run: npm run verify
       - name: Pack verified artifact
         run: mkdir -p artifacts && npm pack --json --ignore-scripts --pack-destination artifacts
+      - name: Seal protected staging candidate
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          npm sbom --sbom-format cyclonedx > artifacts/sbom.cdx.json
+          archive="$(find artifacts -maxdepth 1 -name '*.tgz' -print -quit)"
+          npm run release:custody -- seal artifacts/release-evidence-v1.json "$archive"
+          npm run release:custody -- verify artifacts/release-evidence-v1.json
       - uses: actions/upload-artifact@v4
         with:
           name: reviewer-${{ github.sha }}
           path: artifacts/*.tgz
           if-no-files-found: error
           retention-days: 90
+      - name: Upload sealed staging custody
+        if: github.ref == 'refs/heads/staging'
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewer-candidate-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30

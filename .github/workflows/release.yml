@@ -1,23 +1,29 @@
-name: Release TreeSeed Reviewer
+name: Promote TreeSeed Reviewer Candidate
 on:
   push:
     tags: ["*.*.*"]
-permissions: { contents: write }
+permissions: { actions: read, contents: write }
 jobs:
   release:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: 24 }
-      - run: npm ci --ignore-scripts
-      - run: npm run release:check-tag
-      - run: npm run verify
-      - run: mkdir -p artifacts && npm pack --json --ignore-scripts --pack-destination artifacts
-      - env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
-        shell: bash
+      - name: Download exact protected staging candidate
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: |
-          sha256sum artifacts/*.tgz > artifacts/SHA256SUMS
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/staging)"
+          run_id="$(gh run list --workflow verify.yml --branch staging --commit "$GITHUB_SHA" --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          test -n "$run_id"
+          gh run download "$run_id" --name "reviewer-candidate-${GITHUB_SHA}" --dir candidate
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run release:check-tag
+      - run: npm run release:custody -- verify candidate/release-evidence-v1.json
+      - name: Publish unchanged local-tool custody
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: |
           args=(--generate-notes --verify-tag)
-          [[ "${GITHUB_REF_NAME}" == *-rc.* ]] && args+=(--prerelease)
-          gh release create "${GITHUB_REF_NAME}" artifacts/* "${args[@]}"
+          [[ "$GITHUB_REF_NAME" == *-rc.* ]] && args+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" candidate/*.tgz candidate/sbom.cdx.json candidate/release-evidence-v1.json "${args[@]}"
