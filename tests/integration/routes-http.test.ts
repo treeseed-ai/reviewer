@@ -94,7 +94,7 @@ async function createFixtureServer() {
   const completedTask: ReviewerTask = {
     id: 'task-a',
     status: 'completed',
-    command: ['trsd', 'guarantees', 'run'],
+    command: ['node', 'scripts/run-composition-guarantees.mjs'],
     startedAt: '2026-07-08T10:00:00.000Z',
     completedAt: '2026-07-08T10:00:01.000Z',
     stdout: ['ok'],

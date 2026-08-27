@@ -54,7 +54,7 @@ export function recommendedClassification(result: GuaranteeRunResult): ReviewerD
 }
 
 export function rerunCommandFor(result: GuaranteeRunResult, environment: string) {
-  return `npx trsd guarantees run --id ${result.id} --environment ${environment} --json`;
+  return `npm run guarantees:run -- --ids ${result.id} --environment ${environment}`;
 }
 
 function evidenceAbsolutePath(workspaceRoot: string, runOutputRoot: string, path: string) {

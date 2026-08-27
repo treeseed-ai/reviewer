@@ -132,18 +132,23 @@ export function loadGuaranteeReviewRun(workspaceRoot: string, runIdOrPath: strin
   };
 }
 
-export function commandArgsForGuarantees(action: 'plan' | 'run', request: ReviewerGuaranteePlanRequest | ReviewerGuaranteeRunRequest) {
-  const args = ['trsd', 'guarantees', action, '--environment', request.environment, '--json'];
+function platformGuaranteeScript(workspaceRoot: string, action: 'plan' | 'run') {
+  const platformRoot = process.env.TREESEED_PLATFORM_WORKSPACE?.trim() || workspaceRoot;
+  return resolve(platformRoot, 'scripts', action === 'plan' ? 'plan-composition-guarantees.mjs' : 'run-composition-guarantees.mjs');
+}
+
+export function commandArgsForGuarantees(action: 'plan' | 'run', request: ReviewerGuaranteePlanRequest | ReviewerGuaranteeRunRequest, workspaceRoot = process.cwd()) {
+  const args = [process.execPath, platformGuaranteeScript(workspaceRoot, action), '--environment', request.environment];
   const filter = request.filter ?? {};
-  if (filter.ownerPackage) args.push('--owner-package', filter.ownerPackage);
-  if (filter.type) args.push('--type', filter.type);
-  if (filter.subtype) args.push('--subtype', filter.subtype);
-  if (filter.gate) args.push('--gate', String(filter.gate));
-  if (filter.status) args.push('--status', String(filter.status));
-  for (const id of filter.ids ?? []) args.push('--id', id);
-  for (const index of filter.journeyIndexes ?? []) args.push('--journey-index', String(index));
+  if (filter.ownerPackage) args.push('--guarantee-owner-package', String(filter.ownerPackage));
+  if (filter.type) args.push('--types', String(filter.type));
+  if (filter.subtype) args.push('--subtypes', String(filter.subtype));
+  if (filter.gate) args.push('--gates', String(filter.gate));
+  if (filter.status) args.push('--statuses', String(filter.status));
+  else if (request.includePlanned) args.push('--statuses', 'active,planned');
+  if (Array.isArray(filter.ids) && filter.ids.length) args.push('--ids', filter.ids.map(String).join(','));
+  if (Array.isArray(filter.journeyIndexes) && filter.journeyIndexes.length) args.push('--journey-indexes', filter.journeyIndexes.map(String).join(','));
   if (request.includeDependencies === false) args.push('--no-dependencies');
-  if (request.includePlanned) args.push('--include-planned');
   if (request.device) args.push('--device', request.device);
   if (action === 'run') {
     const run = request as ReviewerGuaranteeRunRequest;
@@ -167,9 +172,8 @@ function parseJsonReport(stdout: string) {
 }
 
 export function resolveCommand(workspaceRoot: string, command: string) {
-  if (command !== 'trsd') return command;
-  const local = resolve(workspaceRoot, 'node_modules', '.bin', 'trsd');
-  return existsSync(local) ? local : command;
+  if (command === process.execPath) return command;
+  return resolve(workspaceRoot, command);
 }
 
 function timestamp() {
@@ -188,8 +192,12 @@ function appendTaskLine(task: ReviewerTask, line: string) {
 export function runGuaranteeCommand(workspaceRoot: string, request: ReviewerGuaranteePlanRequest, action?: 'plan'): Promise<ReviewerCommandResult>;
 export function runGuaranteeCommand(workspaceRoot: string, request: ReviewerGuaranteeRunRequest, action: 'run'): Promise<ReviewerCommandResult>;
 export function runGuaranteeCommand(workspaceRoot: string, request: ReviewerGuaranteePlanRequest | ReviewerGuaranteeRunRequest, action: 'plan' | 'run' = 'plan'): Promise<ReviewerCommandResult> {
-  const full = commandArgsForGuarantees(action, request);
+  const full = commandArgsForGuarantees(action, request, workspaceRoot);
   const [command, ...args] = full;
+  if (!fileExists(args[0] ?? '')) return Promise.resolve({
+    ok: false, exitCode: null, command: full, stdout: '',
+    stderr: 'Platform guarantee runner is unavailable. Configure TREESEED_PLATFORM_WORKSPACE or open Reviewer from the Platform workspace.',
+  });
   return new Promise((resolvePromise) => {
     const child = spawn(resolveCommand(workspaceRoot, command!), args, { cwd: workspaceRoot, env: process.env, shell: false });
     const stdout: string[] = [];
@@ -213,11 +221,19 @@ export function runGuaranteeCommand(workspaceRoot: string, request: ReviewerGuar
 
 export function startGuaranteeRunTask(input: { workspaceRoot: string; request: ReviewerGuaranteeRunRequest; tasks: Map<string, ReviewerTask> }) {
   const id = `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const command = commandArgsForGuarantees('run', input.request);
+  const command = commandArgsForGuarantees('run', input.request, input.workspaceRoot);
   const beforeRunIds = new Set(discoverGuaranteeRuns(input.workspaceRoot).map((run) => run.runId));
   const task: ReviewerTask = { id, status: 'running', command, startedAt: timestamp(), stdout: [], stderr: [], output: [], lastOutputAt: timestamp() };
   input.tasks.set(id, task);
   const [cmd, ...args] = command;
+  if (!fileExists(args[0] ?? '')) {
+    task.status = 'failed';
+    task.completedAt = timestamp();
+    task.stderr.push('Platform guarantee runner is unavailable. Configure TREESEED_PLATFORM_WORKSPACE or open Reviewer from the Platform workspace.\n');
+    task.result = { ok: false, exitCode: null, command, stdout: '', stderr: task.stderr.join('') };
+    appendTaskLine(task, 'Platform guarantee runner is unavailable; no fallback or fabricated evidence was used.');
+    return task;
+  }
   const executable = resolveCommand(input.workspaceRoot, cmd!);
   appendTaskLine(task, `starting guarantee run task ${id}`);
   appendTaskLine(task, `workspace: ${input.workspaceRoot}`);

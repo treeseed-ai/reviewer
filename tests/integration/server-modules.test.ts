@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -39,6 +39,13 @@ afterEach(async () => {
 
 function tempRoot(prefix = 'treeseed-reviewer-critical-') {
   return mkdtempSync(resolve(tmpdir(), prefix));
+}
+
+function writePlatformRunner(root: string, action: 'plan' | 'run', source: string) {
+  const path = resolve(root, 'scripts', action === 'plan' ? 'plan-composition-guarantees.mjs' : 'run-composition-guarantees.mjs');
+  mkdirSync(resolve(root, 'scripts'), { recursive: true });
+  writeFileSync(path, source);
+  return path;
 }
 
 function baseResult(overrides: Partial<GuaranteeRunResult> = {}): GuaranteeRunResult {
@@ -206,38 +213,31 @@ evidence:
     expect(catalog.every((entry) => entry.label.includes(entry.ownerPackage))).toBe(true);
   });
 
-  it('constructs minimal plan commands and executes workspace trsd shims', async () => {
+  it('constructs minimal plan commands and executes the Platform planner', async () => {
     const root = tempRoot();
-    mkdirSync(resolve(root, 'node_modules/.bin'), { recursive: true });
-    const shim = resolve(root, 'node_modules/.bin/trsd');
-    writeFileSync(shim, '#!/usr/bin/env node\nconsole.error("shim stderr"); console.log("prefix"); console.log(JSON.stringify({ok:true, command:"shim"}));\n');
-    chmodSync(shim, 0o755);
-    expect(commandArgsForGuarantees('plan', { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false })).toEqual(['trsd', 'guarantees', 'plan', '--environment', 'local', '--json']);
-    expect(commandArgsForGuarantees('run', { environment: 'local', includeDependencies: true, includePlanned: false, record: false, device: 'desktop_chromium' } as never)).toContain('desktop_chromium');
-    expect(resolveCommand(root, 'node')).toBe('node');
+    const shim = writePlatformRunner(root, 'plan', 'console.error("shim stderr"); console.log("prefix"); console.log(JSON.stringify({ok:true, command:"shim"}));\n');
+    expect(commandArgsForGuarantees('plan', { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false }, root)).toEqual([process.execPath, shim, '--environment', 'local']);
+    expect(commandArgsForGuarantees('run', { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false, record: false, device: 'desktop_chromium' } as never, root)).toContain('desktop_chromium');
+    expect(resolveCommand(root, process.execPath)).toBe(process.execPath);
     const result = await runGuaranteeCommand(root, { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false });
     expect(result.ok).toBe(true);
     expect(result.stderr).toContain('shim stderr');
     expect(result.report).toMatchObject({ ok: true, command: 'shim' });
 
-    writeFileSync(shim, '#!/usr/bin/env node\nconsole.log("not json");\n');
-    chmodSync(shim, 0o755);
+    writeFileSync(shim, 'console.log("not json");\n');
     const textResult = await runGuaranteeCommand(root, { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false });
     expect(textResult.report).toBeUndefined();
 
-    writeFileSync(shim, '#!/usr/bin/env node\nprocess.exit(2);\n');
-    chmodSync(shim, 0o755);
+    writeFileSync(shim, 'process.exit(2);\n');
     const failedResult = await runGuaranteeCommand(root, { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false }, 'plan');
     expect(failedResult.ok).toBe(false);
   });
 
   it('streams task output, detects new runs, and records failed spawn errors', async () => {
     const root = tempRoot();
-    mkdirSync(resolve(root, 'node_modules/.bin'), { recursive: true });
-    const shim = resolve(root, 'node_modules/.bin/trsd');
-    writeFileSync(shim, `#!/usr/bin/env node
-const fs = require('node:fs');
-const path = require('node:path');
+    writePlatformRunner(root, 'run', `
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 console.log('[guarantees][run] starting');
 const root = process.cwd();
 const runDir = path.join(root, '.treeseed/guarantees/runs/run-created');
@@ -245,7 +245,6 @@ fs.mkdirSync(runDir, { recursive: true });
 fs.writeFileSync(path.join(runDir, 'report.json'), JSON.stringify({ ok: true, runId: 'run-created', workspaceRoot: root, environment: 'local', filter: {}, startedAt: '2026-07-08T10:00:00.000Z', outputRoot: runDir, plan: { entries: [] }, results: [], diagnostics: [], counts: { planned: 0, passed: 0, failed: 0, skipped: 0, blocked: 0, releaseBlockingFailures: 0 } }));
 console.error('[guarantees][stderr] ok');
 `);
-    chmodSync(shim, 0o755);
     const tasks = new Map<string, ReviewerTask>();
     const task = startGuaranteeRunTask({ workspaceRoot: root, request: { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false, record: false, sceneArtifacts: 'screenshots', evidenceTarget: 'local' }, tasks });
     await new Promise<void>((resolvePromise) => {
@@ -261,18 +260,7 @@ console.error('[guarantees][stderr] ok');
     expect(task.run?.runId).toBe('run-created');
 
     const missingRoot = tempRoot();
-    const oldPath = process.env.PATH;
-    process.env.PATH = '';
     const failedTask = startGuaranteeRunTask({ workspaceRoot: missingRoot, request: { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false, record: false, sceneArtifacts: 'screenshots', evidenceTarget: 'local' }, tasks: new Map() });
-    await new Promise<void>((resolvePromise) => {
-      const timer = setInterval(() => {
-        if (failedTask.status !== 'running') {
-          clearInterval(timer);
-          resolvePromise();
-        }
-      }, 10);
-    });
-    process.env.PATH = oldPath;
     expect(failedTask.status).toBe('failed');
     expect(failedTask.result?.ok).toBe(false);
   });
@@ -281,14 +269,11 @@ console.error('[guarantees][stderr] ok');
     const root = tempRoot();
     writeRun(root, { ...baseReport(root, [baseResult()]), runId: 'run-a', startedAt: '2026-07-08T10:00:00.000Z' });
     writeRun(root, { ...baseReport(root, [baseResult()]), runId: 'run-b', startedAt: '2026-07-08T11:00:00.000Z' });
-    mkdirSync(resolve(root, 'node_modules/.bin'), { recursive: true });
-    const shim = resolve(root, 'node_modules/.bin/trsd');
-    writeFileSync(shim, `#!/usr/bin/env node
+    writePlatformRunner(root, 'run', `
 setTimeout(() => {
   console.log('done');
 }, 5200);
 `);
-    chmodSync(shim, 0o755);
     const task = startGuaranteeRunTask({ workspaceRoot: root, request: { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false, record: false, sceneArtifacts: 'screenshots', evidenceTarget: 'local' }, tasks: new Map() });
     await new Promise<void>((resolvePromise) => {
       const timer = setInterval(() => {
@@ -304,10 +289,7 @@ setTimeout(() => {
 
   it('records unknown exit code when a guarantee task exits by signal', async () => {
     const root = tempRoot();
-    mkdirSync(resolve(root, 'node_modules/.bin'), { recursive: true });
-    const shim = resolve(root, 'node_modules/.bin/trsd');
-    writeFileSync(shim, '#!/usr/bin/env node\nprocess.kill(process.pid, "SIGTERM");\n');
-    chmodSync(shim, 0o755);
+    writePlatformRunner(root, 'run', 'process.kill(process.pid, "SIGTERM");\n');
     const task = startGuaranteeRunTask({ workspaceRoot: root, request: { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false, record: false, sceneArtifacts: 'screenshots', evidenceTarget: 'local' }, tasks: new Map() });
     await new Promise<void>((resolvePromise) => {
       const timer = setInterval(() => {
@@ -320,4 +302,3 @@ setTimeout(() => {
     expect(task.output.join('')).toContain('code unknown');
   });
 });
-
