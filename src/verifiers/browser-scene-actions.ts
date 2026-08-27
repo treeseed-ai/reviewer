@@ -57,9 +57,11 @@ export async function runAction(runtime: SceneRuntime, source: Record<string, un
     const route = typeof action.goto === 'string' ? action.goto : action.goto.path;
     await runtime.page.goto(new URL(route, runtime.adminOrigin).toString(), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   } else if (action.click) {
+    await runtime.page.waitForLoadState('load', { timeout: 45_000 });
     const target = locator(runtime.page, action.click);
     await target.waitFor({ state: 'visible', timeout: 15_000 }); await target.click({ timeout: 15_000 });
   } else if (action.clickVisibleSequence) {
+    await runtime.page.waitForLoadState('load', { timeout: 45_000 });
     for (const selector of action.clickVisibleSequence) {
       const target = locator(runtime.page, selector);
       await target.waitFor({ state: 'visible', timeout: 15_000 }); await target.click({ timeout: 15_000 });

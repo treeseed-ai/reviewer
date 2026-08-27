@@ -23,6 +23,21 @@ describe('browser scene internal fields', () => {
 	});
 });
 
+describe('browser scene click readiness', () => {
+  it('waits for enhancement scripts at the load boundary before clicking', async () => {
+    const target = { waitFor: vi.fn(), click: vi.fn() };
+    const page = {
+      waitForLoadState: vi.fn(),
+      getByRole: vi.fn().mockReturnValue({ first: () => target }),
+    };
+
+    await runAction({ page } as any, { click: { role: 'button', name: 'Leave team' } });
+
+    expect(page.waitForLoadState).toHaveBeenCalledWith('load', { timeout: 45_000 });
+    expect(target.click).toHaveBeenCalledWith({ timeout: 15_000 });
+  });
+});
+
 describe('optional browser resources', () => {
   it('allows only favicon and optional knowledge page console sources', () => {
     expect(ignoredConsoleSource('https://admin.treeseed.localhost/v1/knowledge/pages/account.identity')).toBe(true);
