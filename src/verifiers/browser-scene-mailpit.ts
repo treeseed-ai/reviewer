@@ -26,7 +26,8 @@ function links(value: string) {
 async function latest(runtime: SceneRuntime, email: string, subject?: string) {
   const origin = runtime.mailpitOrigin.replace(/\/+$/u, '');
   for (let attempt = 0; attempt < 90; attempt += 1) {
-    const response = await fetch(`${origin}/api/v1/messages`);
+    const query = new URLSearchParams({ query: `to:${email}` });
+    const response = await fetch(`${origin}/api/v1/search?${query}`);
     if (!response.ok) throw new Error(`Mailpit message list returned HTTP ${response.status}.`);
     const found = messages(await response.json()).find((message) => recipients(message).some((entry) => entry.toLowerCase() === email.toLowerCase())
       && (!subject || String(message?.Subject ?? message?.subject ?? '').toLowerCase().includes(subject.toLowerCase())));
