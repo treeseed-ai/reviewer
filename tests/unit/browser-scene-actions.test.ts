@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runAction } from '../../src/verifiers/browser-scene-actions.ts';
-import { browserDeviceProfile, browserDeviceProfiles } from '../../src/verifiers/browser-scene-executor.ts';
+import { browserDeviceProfile, browserDeviceProfileMatrix, browserDeviceProfiles } from '../../src/verifiers/browser-scene-executor.ts';
 import { consumeExpectedClientErrors, ignoredConsoleSource } from '../../src/verifiers/browser-scene-executor.ts';
 
 describe('browser scene internal fields', () => {
@@ -83,6 +83,9 @@ describe('browser device profiles', () => {
     expect(browserDeviceProfiles.mobile_chromium.viewport).toEqual({ width: 390, height: 844 });
     expect(browserDeviceProfile('desktop_chromium')).toBe('desktop_chromium');
     expect(() => browserDeviceProfile('desktop_chromium_typo')).toThrow(/Unsupported browser device profile/u);
+		expect(browserDeviceProfileMatrix()).toEqual(['desktop_chromium', 'tablet_chromium', 'mobile_chromium']);
+		expect(browserDeviceProfileMatrix('mobile_chromium,desktop_chromium')).toEqual(['mobile_chromium', 'desktop_chromium']);
+		expect(() => browserDeviceProfileMatrix('desktop_chromium,desktop_chromium')).toThrow(/duplicates/u);
   });
 });
 

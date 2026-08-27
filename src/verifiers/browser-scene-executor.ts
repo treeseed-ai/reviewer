@@ -21,6 +21,15 @@ export function browserDeviceProfile(value: string): BrowserDeviceProfile {
   throw new Error(`Unsupported browser device profile ${value}.`);
 }
 
+export function browserDeviceProfileMatrix(value?: string): BrowserDeviceProfile[] {
+  const requested = value?.split(',').map((entry) => entry.trim()).filter(Boolean)
+    ?? Object.keys(browserDeviceProfiles);
+  const profiles = requested.map(browserDeviceProfile);
+  if (new Set(profiles).size !== profiles.length) throw new Error('Browser device profile matrix cannot contain duplicates.');
+  if (!profiles.length) throw new Error('Browser device profile matrix cannot be empty.');
+  return profiles;
+}
+
 function browserExecutable(explicit?: string) {
   const candidates = [explicit, process.env.TREESEED_CHROMIUM_EXECUTABLE, '/usr/bin/google-chrome-stable', '/usr/bin/google-chrome', '/usr/bin/chromium'];
   const found = candidates.find((entry): entry is string => Boolean(entry && existsSync(entry)));
