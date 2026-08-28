@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -28,6 +29,16 @@ export function browserDeviceProfileMatrix(value?: string): BrowserDeviceProfile
   if (new Set(profiles).size !== profiles.length) throw new Error('Browser device profile matrix cannot contain duplicates.');
   if (!profiles.length) throw new Error('Browser device profile matrix cannot be empty.');
   return profiles;
+}
+
+export function browserRunShort(runId: string) {
+  return createHash('sha256').update(runId).digest('hex').slice(0, 12);
+}
+
+export function blockedCleanupSceneCases(scenes: Map<string, SceneCase>, checks: SceneCheck[]) {
+  const blocked = new Set(checks.filter((check) => check.status === 'blocked').map((check) => check.id));
+  return [...scenes.values()].filter((sceneCase) => blocked.has(sceneCase.executionKey)
+    && sceneCase.scene.journey?.producesState?.some((state) => state.key?.endsWith('.deleted')));
 }
 
 function browserExecutable(explicit?: string) {
@@ -125,7 +136,7 @@ export async function executeBrowserScenes(input: {
   page.on('response', (response) => { if (response.status() >= 500) requestErrors.push(`${response.request().method()} ${new URL(response.url()).pathname}: HTTP ${response.status()}`); });
   const tracePath = resolve(input.evidenceRoot, 'trace.zip');
   await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
-  const runtime: SceneRuntime = { ...input, runShort: input.runId.replace(/[^a-z0-9]/giu, '').slice(-10), deviceId, page, context, consoleErrors, requestErrors };
+  const runtime: SceneRuntime = { ...input, runShort: browserRunShort(input.runId), deviceId, page, context, consoleErrors, requestErrors };
   const checks: SceneCheck[] = [];
   try {
     await ensureVisualMemberFixture(runtime);
@@ -142,6 +153,14 @@ export async function executeBrowserScenes(input: {
         continue;
       }
       checks.push(await executeScene(sceneCase, runtime));
+    }
+    if (checks.some((check) => check.status === 'failed')) {
+      for (const sceneCase of blockedCleanupSceneCases(input.scenes, checks)) {
+        const cleanup = await executeScene(sceneCase, runtime);
+        const check = checks.find((entry) => entry.id === sceneCase.executionKey)!;
+        check.evidence?.push(...(cleanup.evidence ?? []));
+        check.error = `${check.error} Cleanup ${cleanup.status === 'passed' ? 'completed' : `failed: ${cleanup.error ?? 'unknown error'}`}`;
+      }
     }
   } finally {
     await context.tracing.stop({ path: tracePath }).catch(() => undefined);
