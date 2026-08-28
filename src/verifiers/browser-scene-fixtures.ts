@@ -20,8 +20,33 @@ export function assertLocalFixtureOrigin(value: string, label: string) {
   }
 }
 
+function errorDetail(error: unknown) {
+  if (!(error instanceof Error)) return String(error);
+  const causes: string[] = [error.message];
+  let cause = error.cause;
+  while (cause) {
+    causes.push(cause instanceof Error ? cause.message : String(cause));
+    cause = cause instanceof Error ? cause.cause : undefined;
+  }
+  return causes.filter(Boolean).join(' caused by ');
+}
+
+export async function fetchFixtureRequest(
+  input: URL,
+  init: RequestInit,
+  fetcher: typeof fetch = fetch,
+) {
+  try {
+    return await fetcher(input, init);
+  } catch (error) {
+    const method = init.method ?? 'GET';
+    throw new Error(`Browser fixture ${method} ${input.origin}${input.pathname} failed: ${errorDetail(error)}`, { cause: error });
+  }
+}
+
 async function post(runtime: SceneRuntime, path: string, body: Record<string, unknown>) {
-  return fetch(new URL(path, runtime.apiOrigin), {
+  const url = new URL(path, runtime.apiOrigin);
+  return fetchFixtureRequest(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'idempotency-key': randomUUID() },
     body: JSON.stringify(body),
