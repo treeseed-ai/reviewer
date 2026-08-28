@@ -12,6 +12,7 @@ export type SceneSelector = {
 export type SceneDocument = {
   id: string;
   title?: string;
+  journey?: { producesState?: Array<{ key?: string }> };
   setup?: { auth?: { required?: boolean; role?: string } };
   workflow?: SceneStep[];
 };
