@@ -89,7 +89,8 @@ async function executeScene(sceneCase: SceneCase, runtime: SceneRuntime): Promis
       const stepConsoleStart = runtime.consoleErrors.length;
       await runAction(runtime, step.action ?? {});
       await runExpectations(runtime, step.expect ?? {});
-      consumeExpectedClientErrors(runtime.consoleErrors, stepConsoleStart, step.expect?.clientErrorSourceIncludes);
+      consumeExpectedClientErrors(runtime.consoleErrors, stepConsoleStart,
+        typeof step.expect?.clientErrorSourceIncludes === 'string' ? step.expect.clientErrorSourceIncludes : undefined);
       const path = screenshotPath(runtime, sceneCase.scene.id, step.id);
       await runtime.page.screenshot({ path, fullPage: true }); evidence.push(path);
     }

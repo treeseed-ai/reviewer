@@ -9,6 +9,8 @@ const entries = [
   'src/shared/guarantee-review.ts',
   'src/shared/workplan.ts',
   'src/verifiers/browser-scenes.ts',
+  'src/verifiers/guarantees/command.ts',
+  'src/verifiers/guarantees/node-case.ts',
 ];
 
 await build({
