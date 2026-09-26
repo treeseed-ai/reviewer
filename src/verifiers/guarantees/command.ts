@@ -9,7 +9,7 @@ import type { GuaranteeDiagnostic, GuaranteePlanEntry, GuaranteePlanReport, Guar
 
 type Row = Record<string, unknown>;
 export interface LocalGuaranteePlan extends GuaranteePlanReport {
-	entries: Array<GuaranteePlanEntry & { manifest: Row; verifierRefs: string[] }>;
+	entries: Array<GuaranteePlanEntry & { manifest: Row; verifierRefs: string[]; scope?: string }>;
 	verifiers: Record<string, { definition: GuaranteeVerifierDefinition; root: string }>;
 }
 const diagnostic = (message: string): GuaranteeDiagnostic => ({ severity: 'error', code: 'guarantee.verification_failed', message });
@@ -80,12 +80,15 @@ export function planLocalGuarantees(root: string, ids: string[]): LocalGuarantee
 			if (!negative.verifierRefs?.length) fail(`${id}: Negative case ${negative.id ?? '(unnamed)'} has no executable verifier.`);
 		const scene = found.manifest.scene as { required?: boolean; manifest?: string } | undefined;
 		const sceneRefs: string[] = [];
+		let scope = 'local-component-tests';
 		if (scene?.required) {
 			try {
 				if (!scene.manifest) throw new Error('Required scene manifest is missing.');
 				const document = parse(readFileSync(inside(found.root, scene.manifest), 'utf8')) as {
-					workflow?: Array<{ id?: string; demoOnly?: boolean; action?: { verifier?: string }; expect?: { status?: string } }>;
+					scope?: string; workflow?: Array<{ id?: string; demoOnly?: boolean; action?: { verifier?: string }; expect?: { status?: string } }>;
 				};
+				scope = document.scope ?? scope;
+				if (!['local-component-tests', 'local-integrated-runtime'].includes(scope)) throw new Error('Unsupported local scene evidence scope.');
 				if (!document.workflow?.length) throw new Error('Required scene has no executable steps.');
 				const stepIds = new Set<string>();
 				for (const step of document.workflow) {
@@ -103,6 +106,7 @@ export function planLocalGuarantees(root: string, ids: string[]): LocalGuarantee
 			const verifier = plan.verifiers[ref];
 			if (!verifier) { fail(`Missing verifier ${ref}.`); continue; }
 			if (verifier.definition.kind !== 'vitestCase' && verifier.definition.kind !== 'nodeTestCase') { fail(`Local test execution is not configured for ${ref}.`); continue; }
+			if (scope === 'local-integrated-runtime' && verifier.definition.kind !== 'nodeTestCase') fail(`${ref}: Integrated runtime read-back requires an explicit native Node acceptance test.`);
 			try {
 				inside(verifier.root, verifier.definition.testFile);
 				if (!verifier.definition.testName) throw new Error('An exact test name is required.');
@@ -110,12 +114,13 @@ export function planLocalGuarantees(root: string, ids: string[]): LocalGuarantee
 		}
 		const dependencies = found.manifest.dependencies as { guarantees?: string[] } | undefined;
 		pending.push(...(dependencies?.guarantees ?? []));
-		plan.entries.push({ id, sourcePath: relative(root, found.path), manifest: found.manifest, verifierRefs, sceneVerifierRefs: sceneRefs,
+		plan.entries.push({ id, sourcePath: relative(root, found.path), manifest: found.manifest, verifierRefs, sceneVerifierRefs: sceneRefs, scope,
 			journey: String(found.manifest.journey ?? id), ownerPackage: String(found.manifest.ownerPackage ?? ''),
 			type: String(found.manifest.type ?? ''), subtype: String(found.manifest.subtype ?? ''), status: String(found.manifest.status ?? 'planned'),
 			gates: Array.isArray(found.manifest.gates) ? found.manifest.gates.map(String) : [], selected: ids.includes(id), dependency: !ids.includes(id) });
 	}
 	if (!ids.length) fail('Select explicit guarantee IDs; an empty run cannot pass.');
+	if (new Set(plan.entries.map(entry => entry.scope)).size > 1) fail('Component and integrated runtime evidence must run separately.');
 	const visiting = new Set<string>(), finished = new Set<string>(), order: string[] = [];
 	function visit(id: string): void {
 		if (visiting.has(id)) { fail(`Cyclic guarantee dependency ${id}.`); return; }
@@ -136,6 +141,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	if (existsSync(output)) throw new Error('Guarantee evidence is immutable; run ID already exists.');
 	mkdirSync(resolve(output, 'evidence'), { recursive: true });
 	const startedAt = new Date().toISOString();
+	const scope = plan.entries[0]?.scope ?? 'local-component-tests';
 	const checks = new Map<string, { status: 'passed' | 'failed' | 'blocked'; evidence: string[]; diagnostics: GuaranteeDiagnostic[] }>();
 	const blockedGuarantees = new Set<string>(), passedGuarantees = new Set<string>();
 	if (plan.ok) for (const entry of plan.entries) {
@@ -173,7 +179,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 				&& report.numPassedTests > 0 && report.numFailedTests === 0 && observed.length === report.numPassedTests
 				&& observed.every(check => check.status === 'passed' && Number.isFinite(check.duration) && check.duration >= 0);
 		} catch { /* Missing/malformed evidence fails closed. */ }
-		writeFileSync(reportPath, JSON.stringify({ verifierId: ref, scope: 'local-component-tests', testFile, testName, sourceDigest,
+		writeFileSync(reportPath, JSON.stringify({ verifierId: ref, scope, testFile, testName, sourceDigest,
 			exitCode: result.status, signal: result.signal, passed, checks: observed }, null, 2));
 		checks.set(ref, { status: passed ? 'passed' : 'failed', evidence: [relative(output, reportPath)], diagnostics: passed ? [] : [diagnostic('Exact coded verifier did not pass.')] });
 		}
@@ -188,7 +194,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	});
 	const counts = { passed: results.filter(r => r.status === 'passed').length, failed: results.filter(r => r.status === 'failed').length,
 		blocked: results.filter(r => r.status === 'blocked').length, skipped: 0, releaseBlockingFailures: 0 };
-	const report: GuaranteeRunReport = { schemaVersion: 'treeseed.guarantee-run/v1', runId, environment: 'local', scope: 'local-component-tests', startedAt, completedAt: new Date().toISOString(),
+	const report: GuaranteeRunReport = { schemaVersion: 'treeseed.guarantee-run/v1', runId, environment: 'local', scope, startedAt, completedAt: new Date().toISOString(),
 		ok: plan.ok && results.length > 0 && counts.passed === results.length, filter: {}, counts, results, diagnostics: plan.diagnostics };
 	writeFileSync(resolve(output, 'plan.json'), JSON.stringify(plan, null, 2));
 	writeFileSync(resolve(output, 'report.json'), JSON.stringify(report, null, 2));

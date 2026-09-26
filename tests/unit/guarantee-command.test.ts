@@ -20,6 +20,32 @@ function fixture() {
 }
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 describe('package-owned guarantee execution', () => {
+	it('rejects unknown scope and component verifiers masquerading as integrated runtime evidence', () => {
+		const root = fixture();
+		writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), 'id: proof\nscene: { required: true, manifest: scenario.yaml }\n');
+		for (const scope of ['production', 'local-integrated-runtime']) {
+			writeFileSync(resolve(root, 'scenario.yaml'), JSON.stringify({ scope, workflow: [{ id: 'readback', action: { verifier: 'proof.check' }, expect: { status: 'passed' } }] }));
+			expect(planLocalGuarantees(root, ['proof']).ok).toBe(false);
+		}
+	});
+	it('rejects mixed component and integrated evidence in one receipt', () => {
+		const root = fixture();
+		writeFileSync(resolve(root, 'guarantees/live.guarantee.yaml'), 'id: live\nscene: { required: true, manifest: live.yaml }\n');
+		writeFileSync(resolve(root, 'live.yaml'), JSON.stringify({ scope: 'local-integrated-runtime', workflow: [{ id: 'readback', action: { verifier: 'live.check' }, expect: { status: 'passed' } }] }));
+		writeFileSync(resolve(root, 'guarantees/verifiers/live.verifiers.yaml'), 'verifiers:\n  live.check: { kind: nodeTestCase, ownerPackage: fixture, testFile: tests/proof.test.ts, testName: live readback }\n');
+		expect(planLocalGuarantees(root, ['proof', 'live']).diagnostics.map(d => d.message)).toContain('Component and integrated runtime evidence must run separately.');
+	});
+	it('retains integrated scope only for an explicitly executed native acceptance test', () => {
+		const root = fixture();
+		symlinkSync(resolve(import.meta.dirname, '../../node_modules/tsx'), resolve(root, 'node_modules/tsx'), 'dir');
+		writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), 'id: proof\nscene: { required: true, manifest: scenario.yaml }\n');
+		writeFileSync(resolve(root, 'scenario.yaml'), JSON.stringify({ scope: 'local-integrated-runtime', workflow: [{ id: 'readback', action: { verifier: 'proof.check' }, expect: { status: 'passed' } }] }));
+		writeFileSync(resolve(root, 'guarantees/verifiers/proof.verifiers.yaml'), 'verifiers:\n  proof.check: { kind: nodeTestCase, ownerPackage: fixture, testFile: tests/proof.test.ts, testName: live readback }\n');
+		writeFileSync(resolve(root, 'tests/proof.test.ts'), "import test from 'node:test';\ntest('live readback', () => {});\n");
+		const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'live-scope');
+		expect(report.ok).toBe(true);
+		expect(report.scope).toBe('local-integrated-runtime');
+	});
 	it('cannot turn a component check into live outcome or activation proof', () => {
 		const root = fixture();
 		for (const requirement of ['proof: { requiredCommands: [workdays.show] }', 'outcomes: [{ id: live }]', 'activation: { minimumConsecutivePasses: 3 }']) {
