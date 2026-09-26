@@ -41,9 +41,11 @@ function tempRoot(prefix = 'treeseed-reviewer-critical-') {
   return mkdtempSync(resolve(tmpdir(), prefix));
 }
 
-function writePlatformRunner(root: string, action: 'plan' | 'run', source: string) {
-  const path = resolve(root, 'scripts', action === 'plan' ? 'plan-composition-guarantees.mjs' : 'run-composition-guarantees.mjs');
-  mkdirSync(resolve(root, 'scripts'), { recursive: true });
+function writeReviewerRunner(root: string, action: 'plan' | 'run', source: string) {
+  const packageRoot = resolve(root, 'node_modules/@treeseed/reviewer');
+  const path = resolve(packageRoot, 'dist/verifiers/guarantees/command.js');
+  mkdirSync(resolve(packageRoot, 'dist/verifiers/guarantees'), { recursive: true });
+  writeFileSync(resolve(packageRoot, 'package.json'), JSON.stringify({ name: '@treeseed/reviewer', type: 'module' }));
   writeFileSync(path, source);
   return path;
 }
@@ -213,10 +215,10 @@ evidence:
     expect(catalog.every((entry) => entry.label.includes(entry.ownerPackage))).toBe(true);
   });
 
-  it('constructs minimal plan commands and executes the Platform planner', async () => {
+  it('constructs minimal plan commands and executes the package-owned Reviewer planner', async () => {
     const root = tempRoot();
-    const shim = writePlatformRunner(root, 'plan', 'console.error("shim stderr"); console.log("prefix"); console.log(JSON.stringify({ok:true, command:"shim"}));\n');
-    expect(commandArgsForGuarantees('plan', { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false }, root)).toEqual([process.execPath, shim, '--environment', 'local']);
+    const shim = writeReviewerRunner(root, 'plan', 'console.error("shim stderr"); console.log("prefix"); console.log(JSON.stringify({ok:true, command:"shim"}));\n');
+    expect(commandArgsForGuarantees('plan', { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false }, root)).toEqual([process.execPath, shim, '--workspace', root, '--plan', '--environment', 'local']);
     expect(commandArgsForGuarantees('run', { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false, record: false, device: 'desktop_chromium' } as never, root)).toContain('desktop_chromium');
     expect(resolveCommand(root, process.execPath)).toBe(process.execPath);
     const result = await runGuaranteeCommand(root, { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false });
@@ -235,7 +237,7 @@ evidence:
 
   it('streams task output, detects new runs, and records failed spawn errors', async () => {
     const root = tempRoot();
-    writePlatformRunner(root, 'run', `
+    writeReviewerRunner(root, 'run', `
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 console.log('[guarantees][run] starting');
@@ -260,6 +262,9 @@ console.error('[guarantees][stderr] ok');
     expect(task.run?.runId).toBe('run-created');
 
     const missingRoot = tempRoot();
+    const missingPackage = resolve(missingRoot, 'node_modules/@treeseed/reviewer');
+    mkdirSync(missingPackage, { recursive: true });
+    writeFileSync(resolve(missingPackage, 'package.json'), JSON.stringify({ name: '@treeseed/reviewer', type: 'module' }));
     const failedTask = startGuaranteeRunTask({ workspaceRoot: missingRoot, request: { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false, record: false, sceneArtifacts: 'screenshots', evidenceTarget: 'local' }, tasks: new Map() });
     expect(failedTask.status).toBe('failed');
     expect(failedTask.result?.ok).toBe(false);
@@ -269,7 +274,7 @@ console.error('[guarantees][stderr] ok');
     const root = tempRoot();
     writeRun(root, { ...baseReport(root, [baseResult()]), runId: 'run-a', startedAt: '2026-07-08T10:00:00.000Z' });
     writeRun(root, { ...baseReport(root, [baseResult()]), runId: 'run-b', startedAt: '2026-07-08T11:00:00.000Z' });
-    writePlatformRunner(root, 'run', `
+    writeReviewerRunner(root, 'run', `
 setTimeout(() => {
   console.log('done');
 }, 5200);
@@ -289,7 +294,7 @@ setTimeout(() => {
 
   it('records unknown exit code when a guarantee task exits by signal', async () => {
     const root = tempRoot();
-    writePlatformRunner(root, 'run', 'process.kill(process.pid, "SIGTERM");\n');
+    writeReviewerRunner(root, 'run', 'process.kill(process.pid, "SIGTERM");\n');
     const task = startGuaranteeRunTask({ workspaceRoot: root, request: { environment: 'local', filter: {}, includeDependencies: true, includePlanned: false, record: false, sceneArtifacts: 'screenshots', evidenceTarget: 'local' }, tasks: new Map() });
     await new Promise<void>((resolvePromise) => {
       const timer = setInterval(() => {

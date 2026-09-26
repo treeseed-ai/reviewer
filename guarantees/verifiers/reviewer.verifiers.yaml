@@ -5,6 +5,7 @@ verifiers:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/contract/workplan-packaging.test.ts
+    testName: writes directives, evidence manifest, context, and agent brief
     description: Package-local verifier proves a reviewed guarantee run can be converted into a workplan with copied evidence and an agent brief.
   reviewer.evidence.rejects-outside-workspace:
     kind: vitestCase

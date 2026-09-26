@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import type {
@@ -132,13 +133,21 @@ export function loadGuaranteeReviewRun(workspaceRoot: string, runIdOrPath: strin
   };
 }
 
-function platformGuaranteeScript(workspaceRoot: string, action: 'plan' | 'run') {
-  const platformRoot = process.env.TREESEED_PLATFORM_WORKSPACE?.trim() || workspaceRoot;
-  return resolve(platformRoot, 'scripts', action === 'plan' ? 'plan-composition-guarantees.mjs' : 'run-composition-guarantees.mjs');
+function reviewerGuaranteeScript(workspaceRoot: string) {
+  try {
+    const manifest = createRequire(resolve(workspaceRoot, 'package.json')).resolve('@treeseed/reviewer/package.json');
+    return resolve(manifest, '../dist/verifiers/guarantees/command.js');
+  } catch {
+    const candidates = [resolve(import.meta.dirname, '../verifiers/guarantees/command.js'),
+      resolve(import.meta.dirname, '../../dist/verifiers/guarantees/command.js'),
+      resolve(import.meta.dirname, './verifiers/guarantees/command.js')];
+    return candidates.find(fileExists) ?? candidates[0]!;
+  }
 }
 
 export function commandArgsForGuarantees(action: 'plan' | 'run', request: ReviewerGuaranteePlanRequest | ReviewerGuaranteeRunRequest, workspaceRoot = process.cwd()) {
-  const args = [process.execPath, platformGuaranteeScript(workspaceRoot, action), '--environment', request.environment];
+  const args = [process.execPath, reviewerGuaranteeScript(workspaceRoot), '--workspace', workspaceRoot,
+    ...(action === 'plan' ? ['--plan'] : []), '--environment', request.environment];
   const filter = request.filter ?? {};
   if (filter.ownerPackage) args.push('--guarantee-owner-package', String(filter.ownerPackage));
   if (filter.type) args.push('--types', String(filter.type));
@@ -196,7 +205,7 @@ export function runGuaranteeCommand(workspaceRoot: string, request: ReviewerGuar
   const [command, ...args] = full;
   if (!fileExists(args[0] ?? '')) return Promise.resolve({
     ok: false, exitCode: null, command: full, stdout: '',
-    stderr: 'Platform guarantee runner is unavailable. Configure TREESEED_PLATFORM_WORKSPACE or open Reviewer from the Platform workspace.',
+    stderr: 'Reviewer guarantee runner is unavailable. Build or install the Reviewer package.',
   });
   return new Promise((resolvePromise) => {
     const child = spawn(resolveCommand(workspaceRoot, command!), args, { cwd: workspaceRoot, env: process.env, shell: false });
@@ -229,9 +238,9 @@ export function startGuaranteeRunTask(input: { workspaceRoot: string; request: R
   if (!fileExists(args[0] ?? '')) {
     task.status = 'failed';
     task.completedAt = timestamp();
-    task.stderr.push('Platform guarantee runner is unavailable. Configure TREESEED_PLATFORM_WORKSPACE or open Reviewer from the Platform workspace.\n');
+    task.stderr.push('Reviewer guarantee runner is unavailable. Build or install the Reviewer package.\n');
     task.result = { ok: false, exitCode: null, command, stdout: '', stderr: task.stderr.join('') };
-    appendTaskLine(task, 'Platform guarantee runner is unavailable; no fallback or fabricated evidence was used.');
+    appendTaskLine(task, 'Reviewer guarantee runner is unavailable; no fallback or fabricated evidence was used.');
     return task;
   }
   const executable = resolveCommand(input.workspaceRoot, cmd!);

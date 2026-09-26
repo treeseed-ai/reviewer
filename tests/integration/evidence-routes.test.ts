@@ -173,8 +173,11 @@ describe('evidence and route coverage', () => {
     writeFileSync(resolve(uiRoot, 'image.png'), 'png');
     writeFileSync(resolve(uiRoot, 'file.bin'), 'bin');
     mkdirSync(resolve(root, 'scripts'), { recursive: true });
-    const planShim = resolve(root, 'scripts/plan-composition-guarantees.mjs');
-    const runShim = resolve(root, 'scripts/run-composition-guarantees.mjs');
+    const packageRoot = resolve(root, 'node_modules/@treeseed/reviewer');
+    mkdirSync(resolve(packageRoot, 'dist/verifiers/guarantees'), { recursive: true });
+    writeFileSync(resolve(packageRoot, 'package.json'), JSON.stringify({ name: '@treeseed/reviewer', type: 'module' }));
+    const planShim = resolve(packageRoot, 'dist/verifiers/guarantees/command.js');
+    const runShim = planShim;
     writeFileSync(planShim, `console.log(JSON.stringify({ ok: true, source: 'plan-route' }));\n`);
     writeFileSync(runShim, `console.log(JSON.stringify({ ok: true, source: 'run-route' }));\n`);
     writeRun(root, baseReport(root, [baseResult()]));
