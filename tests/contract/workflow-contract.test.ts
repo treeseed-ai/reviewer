@@ -1,7 +1,25 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 describe('reviewer verification workflow', () => {
+  it('runs one immutable owner scene implementation and retains failure evidence', () => {
+    const action = parse(readFileSync('.github/actions/run-scenes/action.yml', 'utf8'));
+    const steps = action.runs.steps as Array<Record<string, any>>;
+    const checkout = steps.find(step => step.uses === 'actions/checkout@v4')!;
+    expect(checkout.with.repository).toBe('treeseed-ai/reviewer');
+    expect(checkout.with.ref).toBe('${{ github.action_ref }}');
+    expect(checkout.with['persist-credentials']).toBe(false);
+    expect(steps[0]!.run).toContain('^[0-9a-f]{40}$');
+    const execution = steps.find(step => step.name === 'Execute owner scenes')!;
+    expect(execution.run).toContain('src/verifiers/guarantees/command.ts');
+    expect(execution.run).toContain('--environment local');
+    expect(execution.run).not.toContain('|| true');
+    const evidence = steps.find(step => step.uses === 'actions/upload-artifact@v4')!;
+    expect(evidence.if).toBe('always()');
+    expect(evidence.with['if-no-files-found']).toBe('error');
+    expect(evidence.with['retention-days']).toBe(7);
+  });
   it('verifies released dependencies and preserves the packed artifact', () => {
     const workflow = readFileSync('.github/workflows/verify.yml', 'utf8');
 
