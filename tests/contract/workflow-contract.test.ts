@@ -6,10 +6,10 @@ describe('reviewer verification workflow', () => {
   it('runs one immutable owner scene implementation and retains failure evidence', () => {
     const action = parse(readFileSync('.github/actions/run-scenes/action.yml', 'utf8'));
     const steps = action.runs.steps as Array<Record<string, any>>;
-    const checkout = steps.find(step => step.uses === 'actions/checkout@v4')!;
-    expect(checkout.with.repository).toBe('treeseed-ai/reviewer');
-    expect(checkout.with.ref).toBe('${{ github.action_ref }}');
-    expect(checkout.with['persist-credentials']).toBe(false);
+    expect(steps.some(step => step.uses === 'actions/checkout@v4')).toBe(false);
+    expect(steps[0]!.env.REVIEWER_ACTION_PATH).toBe('${{ github.action_path }}');
+    expect(steps[0]!.run).toContain('cp -a "${REVIEWER_ACTION_PATH}/../../.." .treeseed/tools/reviewer');
+    expect(steps[0]!.run).toContain('test ! -e .treeseed/tools/reviewer');
     expect(steps[0]!.run).toContain('^[0-9a-f]{40}$');
     const execution = steps.find(step => step.name === 'Execute owner scenes')!;
     expect(execution.run).toContain('src/verifiers/guarantees/command.ts');
@@ -19,6 +19,7 @@ describe('reviewer verification workflow', () => {
     expect(evidence.if).toBe('always()');
     expect(evidence.with['if-no-files-found']).toBe('error');
     expect(evidence.with['retention-days']).toBe(7);
+    expect(evidence.with['include-hidden-files']).toBe(true);
   });
   it('verifies released dependencies and preserves the packed artifact', () => {
     const workflow = readFileSync('.github/workflows/verify.yml', 'utf8');
