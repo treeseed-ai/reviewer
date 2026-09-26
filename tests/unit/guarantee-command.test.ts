@@ -20,6 +20,13 @@ function fixture() {
 }
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 describe('package-owned guarantee execution', () => {
+	it('cannot turn a component check into live outcome or activation proof', () => {
+		const root = fixture();
+		for (const requirement of ['proof: { requiredCommands: [workdays.show] }', 'outcomes: [{ id: live }]', 'activation: { minimumConsecutivePasses: 3 }']) {
+			writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), `id: proof\napi: { verifierRefs: [proof.check] }\n${requirement}\n`);
+			expect(planLocalGuarantees(root, ['proof']).diagnostics.map(d => d.message)).toContain('proof: Live outcome/activation requirements cannot be attested by local component tests.');
+		}
+	});
 	it('does not silently ignore unsupported browser, recording, filtering, or environment requests', () => {
 		for (const option of ['--device', '--record', '--types', '--no-dependencies', '--evidence-target'])
 			expect(localRequestDiagnostics([option]).length).toBeGreaterThan(0);
