@@ -1,0 +1,41 @@
+name: Verify exact TreeSeed scenes
+description: Execute the existing Reviewer scene runner against the owner checkout and retain immutable evidence.
+inputs:
+  ids:
+    description: Comma-separated exact guarantee IDs in the owner checkout.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Require immutable Reviewer source
+      shell: bash
+      env:
+        REVIEWER_REF: ${{ github.action_ref }}
+      run: |
+        set -euo pipefail
+        [[ "${REVIEWER_REF}" =~ ^[0-9a-f]{40}$ ]] || { echo 'Reviewer scenes require an exact commit.' >&2; exit 1; }
+        test -d node_modules
+    - name: Load exact existing scene runner
+      uses: actions/checkout@v4
+      with:
+        repository: treeseed-ai/reviewer
+        ref: ${{ github.action_ref }}
+        path: .treeseed/tools/reviewer
+        persist-credentials: false
+    - name: Execute owner scenes
+      shell: bash
+      env:
+        SCENE_IDS: ${{ inputs.ids }}
+      run: |
+        set -euo pipefail
+        node --import tsx .treeseed/tools/reviewer/src/verifiers/guarantees/command.ts \
+          --workspace "${GITHUB_WORKSPACE}" --environment local --ids "${SCENE_IDS}" \
+          --run-id "actions-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+    - name: Retain scene evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scene-evidence-${{ github.sha }}-${{ github.run_attempt }}
+        path: .treeseed/guarantees/runs/actions-${{ github.run_id }}-${{ github.run_attempt }}/
+        if-no-files-found: error
+        retention-days: 7
