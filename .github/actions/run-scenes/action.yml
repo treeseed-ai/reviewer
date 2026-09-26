@@ -11,17 +11,14 @@ runs:
       shell: bash
       env:
         REVIEWER_REF: ${{ github.action_ref }}
+        REVIEWER_ACTION_PATH: ${{ github.action_path }}
       run: |
         set -euo pipefail
         [[ "${REVIEWER_REF}" =~ ^[0-9a-f]{40}$ ]] || { echo 'Reviewer scenes require an exact commit.' >&2; exit 1; }
         test -d node_modules
-    - name: Load exact existing scene runner
-      uses: actions/checkout@v4
-      with:
-        repository: treeseed-ai/reviewer
-        ref: ${{ github.action_ref }}
-        path: .treeseed/tools/reviewer
-        persist-credentials: false
+        test ! -e .treeseed/tools/reviewer
+        mkdir -p .treeseed/tools
+        cp -a "${REVIEWER_ACTION_PATH}/../../.." .treeseed/tools/reviewer
     - name: Execute owner scenes
       shell: bash
       env:
@@ -39,3 +36,4 @@ runs:
         path: .treeseed/guarantees/runs/actions-${{ github.run_id }}-${{ github.run_attempt }}/
         if-no-files-found: error
         retention-days: 7
+        include-hidden-files: true
