@@ -69,6 +69,8 @@ export function planLocalGuarantees(root: string, ids: string[]): LocalGuarantee
 		const found = manifests.get(id);
 		if (!found) { fail(`Missing guarantee ${id}.`); continue; }
 		if (duplicateGuarantees.has(id)) fail(`Duplicate guarantee ${id}.`);
+		if (found.manifest.proof || found.manifest.outcomes || found.manifest.activation)
+			fail(`${id}: Live outcome/activation requirements cannot be attested by local component tests.`);
 		for (const section of ['api', 'content', 'audit']) {
 			const contract = found.manifest[section] as { required?: boolean; verifierRefs?: string[] } | undefined;
 			if (contract?.required && !contract.verifierRefs?.length)
