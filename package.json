@@ -28,7 +28,8 @@
   "bin": {
     "treeseed-reviewer": "./dist/bin/reviewer.js",
     "trsd-reviewer": "./dist/bin/reviewer.js",
-    "treeseed-reviewer-verify-browser-scenes": "./dist/verifiers/browser-scenes.js"
+    "treeseed-reviewer-verify-browser-scenes": "./dist/verifiers/browser-scenes.js",
+    "treeseed-reviewer-guarantees": "./dist/verifiers/guarantees/command.js"
   },
   "scripts": {
     "setup": "npm install",
@@ -57,6 +58,7 @@
     "playwright-core": "1.60.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "tsx": "^4.21.0",
     "yaml": "^2.8.1"
   },
   "devDependencies": {
@@ -66,7 +68,6 @@
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/coverage-v8": "^4.1.2",
     "esbuild": "^0.28.0",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.5",
     "vitest": "^4.1.2"

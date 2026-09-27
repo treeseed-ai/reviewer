@@ -29,6 +29,8 @@ const bin = resolve('dist/bin/reviewer.js');
 if (existsSync(bin)) chmodSync(bin, 0o755);
 const verifier = resolve('dist/verifiers/browser-scenes.js');
 if (existsSync(verifier)) chmodSync(verifier, 0o755);
+const guarantees = resolve('dist/verifiers/guarantees/command.js');
+if (existsSync(guarantees)) chmodSync(guarantees, 0o755);
 
 const packageJson = resolve('package.json');
 const outPackageJson = resolve('dist/package.json');
