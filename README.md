@@ -24,6 +24,13 @@ test names, skipped tests, unavailable services and incomplete evidence cannot
 pass. Failed native checks retain error classification and source location,
 never raw credential-bearing test output.
 
+Package-owned test verifier declarations may set `timeoutMs` to an integer
+between 1 and 86,400,000 milliseconds for long campaign scenes. The default
+remains 120,000. Invalid values fail during planning; an expired process
+watchdog fails the run and records its timeout and process error code. This
+watchdog does not alter workday or assignment deadlines, reserve capacity, or
+replace a campaign scene's supported stop/settlement/cleanup responsibilities.
+
 ## Acceptance specification coverage
 
 ```sh

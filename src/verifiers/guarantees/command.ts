@@ -15,6 +15,12 @@ export interface LocalGuaranteePlan extends GuaranteePlanReport {
 	verifiers: Record<string, { definition: GuaranteeVerifierDefinition; root: string }>;
 }
 const diagnostic = (message: string): GuaranteeDiagnostic => ({ severity: 'error', code: 'guarantee.verification_failed', message });
+export function verifierTimeout(value: unknown): number {
+	if (value === undefined) return 120_000;
+	if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 86_400_000)
+		throw new Error('Verifier timeoutMs must be an integer from 1 to 86400000 milliseconds.');
+	return value;
+}
 export function localRequestDiagnostics(args: string[]): GuaranteeDiagnostic[] {
 	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment', '--acceptance-spec']);
 	const errors = args.filter(arg => arg.startsWith('--') && !supported.has(arg))
@@ -110,6 +116,7 @@ export function planLocalGuarantees(root: string, ids: string[]): LocalGuarantee
 			if (verifier.definition.kind !== 'vitestCase' && verifier.definition.kind !== 'nodeTestCase') { fail(`Local test execution is not configured for ${ref}.`); continue; }
 			if (scope === 'local-integrated-runtime' && verifier.definition.kind !== 'nodeTestCase') fail(`${ref}: Integrated runtime read-back requires an explicit native Node acceptance test.`);
 			try {
+				verifierTimeout(Reflect.get(verifier.definition, 'timeoutMs'));
 				inside(verifier.root, verifier.definition.testFile);
 				if (!verifier.definition.testName) throw new Error('An exact test name is required.');
 			} catch (error) { fail(`${ref}: ${error instanceof Error ? error.message : 'Invalid verifier.'}`); }
@@ -169,7 +176,8 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 				'-t', `^.*${testName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, '--reporter=json']
 			: [...(import.meta.url.endsWith('.ts') ? ['--import', createRequire(import.meta.url).resolve('tsx')] : []),
 				fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`, import.meta.url)), inside(binding.root, testFile), testName];
-		const result = spawnSync(process.execPath, args, { cwd: binding.root, encoding: 'utf8', timeout: 120_000, maxBuffer: 8 * 1024 * 1024 });
+		const timeoutMs = verifierTimeout(Reflect.get(binding.definition, 'timeoutMs'));
+		const result = spawnSync(process.execPath, args, { cwd: binding.root, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 });
 		let passed = false;
 		let observed: Array<{ title: string; status: string; duration: number; failure?: unknown }> = [];
 		try {
@@ -183,6 +191,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 				&& observed.every(check => check.status === 'passed' && Number.isFinite(check.duration) && check.duration >= 0);
 		} catch { /* Missing/malformed evidence fails closed. */ }
 		writeFileSync(reportPath, JSON.stringify({ verifierId: ref, scope, testFile, testName, sourceDigest,
+			timeoutMs, processErrorCode: result.error && 'code' in result.error ? result.error.code : null,
 			exitCode: result.status, signal: result.signal, passed, checks: observed }, null, 2));
 		checks.set(ref, { status: passed ? 'passed' : 'failed', evidence: [relative(output, reportPath)], diagnostics: passed ? [] : [diagnostic('Exact coded verifier did not pass.')] });
 		}

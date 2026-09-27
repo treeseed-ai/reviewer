@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSyn
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { localRequestDiagnostics, planLocalGuarantees, runLocalGuarantees } from '../../src/verifiers/guarantees/command.ts';
+import { localRequestDiagnostics, planLocalGuarantees, runLocalGuarantees, verifierTimeout } from '../../src/verifiers/guarantees/command.ts';
 
 const roots: string[] = [];
 function fixture() {
@@ -20,6 +20,38 @@ function fixture() {
 }
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 describe('package-owned guarantee execution', () => {
+	it('keeps a bounded package-declared test watchdog distinct from assignment clocks', () => {
+		expect(verifierTimeout(undefined)).toBe(120_000);
+		expect(verifierTimeout(28_800_000)).toBe(28_800_000);
+		expect(verifierTimeout(86_400_000)).toBe(86_400_000);
+		for (const value of [null, '120000', 0, -1, 1.5, Number.NaN, Infinity, 86_400_001])
+			expect(() => verifierTimeout(value)).toThrow('timeoutMs');
+	});
+	it('rejects malformed verifier timeouts before any test execution', () => {
+		const root = fixture();
+		writeFileSync(resolve(root, 'guarantees/verifiers/proof.verifiers.yaml'),
+			'verifiers:\n  proof.check: { kind: nodeTestCase, ownerPackage: fixture, testFile: tests/proof.test.ts, testName: proves the boundary, timeoutMs: 0 }\n');
+		expect(planLocalGuarantees(root, ['proof']).ok).toBe(false);
+	});
+	it('records the timeout boundary and fails closed on a killed verifier', () => {
+		const root = fixture();
+		writeFileSync(resolve(root, 'guarantees/verifiers/proof.verifiers.yaml'),
+			'verifiers:\n  proof.check: { kind: nodeTestCase, ownerPackage: fixture, testFile: tests/proof.test.ts, testName: proves the boundary, timeoutMs: 1 }\n');
+		const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'bounded-watchdog');
+		expect(report.ok).toBe(false);
+		const evidence = JSON.parse(readFileSync(resolve(root, '.treeseed/guarantees/runs/bounded-watchdog', report.results[0]!.evidence[0]!), 'utf8'));
+		expect(evidence).toMatchObject({ passed: false, timeoutMs: 1, processErrorCode: 'ETIMEDOUT' });
+	});
+	it('runs a native scene with its declared watchdog and retains that exact budget in evidence', () => {
+		const root = fixture();
+		writeFileSync(resolve(root, 'guarantees/verifiers/proof.verifiers.yaml'),
+			'verifiers:\n  proof.check: { kind: nodeTestCase, ownerPackage: fixture, testFile: tests/proof.test.ts, testName: proves the boundary, timeoutMs: 5000 }\n');
+		writeFileSync(resolve(root, 'tests/proof.test.ts'), "import test from 'node:test';\ntest('proves the boundary', async () => { await new Promise(resolve => setTimeout(resolve, 20)); });\n");
+		const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'declared-watchdog');
+		expect(report.ok).toBe(true);
+		const evidence = JSON.parse(readFileSync(resolve(root, '.treeseed/guarantees/runs/declared-watchdog', report.results[0]!.evidence[0]!), 'utf8'));
+		expect(evidence).toMatchObject({ passed: true, timeoutMs: 5000, processErrorCode: null });
+	});
 	it('rejects unknown scope and component verifiers masquerading as integrated runtime evidence', () => {
 		const root = fixture();
 		writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), 'id: proof\nscene: { required: true, manifest: scenario.yaml }\n');
