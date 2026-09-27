@@ -4,7 +4,9 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { resolve, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { parse } from 'yaml';
+import { acceptanceCriteria, acceptanceCoverage, type AcceptanceBinding } from './acceptance-spec.ts';
 import type { GuaranteeDiagnostic, GuaranteePlanEntry, GuaranteePlanReport, GuaranteeRunReport, GuaranteeRunStep, GuaranteeRunStatus, GuaranteeVerifierDefinition } from '@treeseed/sdk/guarantees';
 
 type Row = Record<string, unknown>;
@@ -14,7 +16,7 @@ export interface LocalGuaranteePlan extends GuaranteePlanReport {
 }
 const diagnostic = (message: string): GuaranteeDiagnostic => ({ severity: 'error', code: 'guarantee.verification_failed', message });
 export function localRequestDiagnostics(args: string[]): GuaranteeDiagnostic[] {
-	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment']);
+	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment', '--acceptance-spec']);
 	const errors = args.filter(arg => arg.startsWith('--') && !supported.has(arg))
 		.map(arg => diagnostic(`Unsupported local component option ${arg}; no evidence was executed.`));
 	const environment = args.indexOf('--environment');
@@ -165,16 +167,17 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 		const args = binding.definition.kind === 'vitestCase'
 			? [inside(binding.root, 'node_modules/vitest/vitest.mjs'), 'run', ...(config ? ['--config', inside(binding.root, config)] : []), testFile,
 				'-t', `^.*${testName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, '--reporter=json']
-			: [...(import.meta.url.endsWith('.ts') ? ['--import', 'tsx'] : []),
+			: [...(import.meta.url.endsWith('.ts') ? ['--import', createRequire(import.meta.url).resolve('tsx')] : []),
 				fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`, import.meta.url)), inside(binding.root, testFile), testName];
 		const result = spawnSync(process.execPath, args, { cwd: binding.root, encoding: 'utf8', timeout: 120_000, maxBuffer: 8 * 1024 * 1024 });
 		let passed = false;
-		let observed: Array<{ title: string; status: string; duration: number }> = [];
+		let observed: Array<{ title: string; status: string; duration: number; failure?: unknown }> = [];
 		try {
 			const report = JSON.parse(result.stdout) as { success: boolean; numPassedTests: number; numFailedTests: number;
-				testResults: Array<{ assertionResults: Array<{ title: string; status: string; duration?: number }> }> };
+				testResults: Array<{ assertionResults: Array<{ title: string; status: string; duration?: number; failure?: unknown }> }> };
 			observed = report.testResults.flatMap(file => file.assertionResults).filter(check => check.title === testName)
-				.map(check => ({ title: check.title, status: check.status, duration: check.duration ?? Number.NaN }));
+				.map(check => ({ title: check.title, status: check.status, duration: check.duration ?? Number.NaN,
+					...(check.failure ? { failure: check.failure } : {}) }));
 			passed = result.status === 0 && report.success === true && Number.isInteger(report.numPassedTests)
 				&& report.numPassedTests > 0 && report.numFailedTests === 0 && observed.length === report.numPassedTests
 				&& observed.every(check => check.status === 'passed' && Number.isFinite(check.duration) && check.duration >= 0);
@@ -204,6 +207,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
 	const option = (name: string) => { const index = process.argv.indexOf(`--${name}`); return index < 0 ? '' : process.argv[index + 1] ?? ''; };
 	const root = resolve(option('workspace') || process.cwd());
 	const plan = planLocalGuarantees(root, option('ids').split(',').filter(Boolean));
+	if (option('acceptance-spec')) {
+		try {
+			const criteria = acceptanceCriteria(readFileSync(resolve(root, option('acceptance-spec')), 'utf8'));
+			const bindings = plan.entries.flatMap(entry => (entry.manifest.acceptanceCriteria ?? []) as AcceptanceBinding[]);
+			const selected = new Set(plan.entries.flatMap(entry => entry.verifierRefs));
+			const coverage = acceptanceCoverage(criteria, bindings, selected);
+			plan.diagnostics.push(...coverage.diagnostics.map(diagnostic));
+		} catch (error) { plan.diagnostics.push(diagnostic(error instanceof Error ? error.message : 'Invalid acceptance specification.')); }
+	}
 	plan.diagnostics.push(...localRequestDiagnostics(process.argv.slice(2)));
 	plan.ok = plan.diagnostics.length === 0;
 	const report = process.argv.includes('--plan') ? plan : runLocalGuarantees(root, plan, option('run-id') || randomUUID());

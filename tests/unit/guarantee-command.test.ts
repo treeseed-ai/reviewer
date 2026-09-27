@@ -37,7 +37,6 @@ describe('package-owned guarantee execution', () => {
 	});
 	it('retains integrated scope only for an explicitly executed native acceptance test', () => {
 		const root = fixture();
-		symlinkSync(resolve(import.meta.dirname, '../../node_modules/tsx'), resolve(root, 'node_modules/tsx'), 'dir');
 		writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), 'id: proof\nscene: { required: true, manifest: scenario.yaml }\n');
 		writeFileSync(resolve(root, 'scenario.yaml'), JSON.stringify({ scope: 'local-integrated-runtime', workflow: [{ id: 'readback', action: { verifier: 'proof.check' }, expect: { status: 'passed' } }] }));
 		writeFileSync(resolve(root, 'guarantees/verifiers/proof.verifiers.yaml'), 'verifiers:\n  proof.check: { kind: nodeTestCase, ownerPackage: fixture, testFile: tests/proof.test.ts, testName: live readback }\n');
