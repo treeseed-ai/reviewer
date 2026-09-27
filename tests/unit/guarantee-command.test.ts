@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -94,6 +94,17 @@ describe('package-owned guarantee execution', () => {
 		const root = fixture();
 		for (const id of ['.', '..', '../escape', '/absolute'])
 			expect(() => runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), id)).toThrow('Unsafe');
+	});
+	it('retains a native criterion failure code without copying secret-bearing messages', () => {
+		const root = fixture();
+		writeFileSync(resolve(root, 'guarantees/verifiers/proof.verifiers.yaml'), 'verifiers:\n  proof.check: { kind: nodeTestCase, ownerPackage: fixture, testFile: tests/proof.test.ts, testName: proves the boundary }\n');
+		writeFileSync(resolve(root, 'tests/proof.test.ts'), "import test from 'node:test';\ntest('proves the boundary', () => {throw new Error('ACCEPTANCE_PLANNING_CYCLES: secret-must-not-leak');});\n");
+		const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'safe-native-diagnostic');
+		expect(report.ok).toBe(false);
+		const path = resolve(root, '.treeseed/guarantees/runs/safe-native-diagnostic', report.results[0]!.evidence[0]!);
+		const evidence = readFileSync(path, 'utf8');
+		expect(evidence).toContain('ACCEPTANCE_PLANNING_CYCLES');
+		expect(evidence).not.toContain('secret-must-not-leak');
 	});
 	it('rejects ambiguous selected bindings without coupling a run to unrelated catalog entries', () => {
 		const root = fixture();
