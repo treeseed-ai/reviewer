@@ -77,6 +77,22 @@ describe('package-owned guarantee execution', () => {
 		expect(report.ok).toBe(true);
 		expect(report.scope).toBe('local-integrated-runtime');
 	});
+	it('blocks later scene steps after a failed smoke check without executing the campaign', () => {
+		const root = fixture();
+		symlinkSync(resolve(import.meta.dirname, '../../node_modules/tsx'), resolve(root, 'node_modules/tsx'), 'dir');
+		writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), 'id: proof\nscene: { required: true, manifest: scenario.yaml }\n');
+		writeFileSync(resolve(root, 'scenario.yaml'), JSON.stringify({ scope: 'local-integrated-runtime', workflow: [
+			{ id: 'smoke', action: { verifier: 'proof.smoke' }, expect: { status: 'passed' } },
+			{ id: 'campaign', action: { verifier: 'proof.campaign' }, expect: { status: 'passed' } },
+		] }));
+		writeFileSync(resolve(root, 'guarantees/verifiers/proof.verifiers.yaml'), 'verifiers:\n  proof.smoke: { kind: nodeTestCase, ownerPackage: fixture, testFile: tests/proof.test.ts, testName: smoke }\n  proof.campaign: { kind: nodeTestCase, ownerPackage: fixture, testFile: tests/proof.test.ts, testName: campaign }\n');
+		writeFileSync(resolve(root, 'tests/proof.test.ts'), "import test from 'node:test';\nimport { writeFileSync } from 'node:fs';\ntest('smoke', () => { throw new Error('smoke failed'); });\ntest('campaign', () => { writeFileSync('campaign-ran', 'yes'); });\n");
+		const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'scene-fail-fast');
+		expect(report.ok).toBe(false);
+		expect(report.results[0]?.steps.map(step => step.status)).toEqual(['failed', 'blocked']);
+		expect(report.results[0]?.steps[1]?.evidence).toEqual([]);
+		expect(() => readFileSync(resolve(root, 'campaign-ran'))).toThrow();
+	});
 	it('cannot turn a component check into live outcome or activation proof', () => {
 		const root = fixture();
 		for (const requirement of ['proof: { requiredCommands: [workdays.show] }', 'outcomes: [{ id: live }]', 'activation: { minimumConsecutivePasses: 3 }']) {
