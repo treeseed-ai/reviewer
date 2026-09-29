@@ -156,7 +156,12 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	if (plan.ok) for (const entry of plan.entries) {
 		const dependencies = entry.manifest.dependencies as { guarantees?: string[] } | undefined;
 		if (dependencies?.guarantees?.some(id => !passedGuarantees.has(id))) { blockedGuarantees.add(entry.id); continue; }
+		let failedSceneStep = false;
 		for (const ref of entry.verifierRefs) {
+		if (failedSceneStep && entry.sceneVerifierRefs?.includes(ref)) {
+			checks.set(ref, { status: 'blocked', evidence: [], diagnostics: [diagnostic('An earlier scene step did not pass.')] });
+			continue;
+		}
 		if (checks.has(ref)) continue;
 		const binding = plan.verifiers[ref]!;
 		if (binding.definition.kind !== 'vitestCase' && binding.definition.kind !== 'nodeTestCase') continue;
@@ -194,6 +199,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 			timeoutMs, processErrorCode: result.error && 'code' in result.error ? result.error.code : null,
 			exitCode: result.status, signal: result.signal, passed, checks: observed }, null, 2));
 		checks.set(ref, { status: passed ? 'passed' : 'failed', evidence: [relative(output, reportPath)], diagnostics: passed ? [] : [diagnostic('Exact coded verifier did not pass.')] });
+		if (!passed && entry.sceneVerifierRefs?.includes(ref)) failedSceneStep = true;
 		}
 		if (entry.verifierRefs.every(ref => checks.get(ref)?.status === 'passed')) passedGuarantees.add(entry.id);
 	}
