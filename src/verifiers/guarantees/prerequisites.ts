@@ -36,7 +36,7 @@ export function fullSuitePassed(value: unknown): boolean {
 	});
 }
 
-function candidate(root: string) {
+export function candidate(root: string) {
 	const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: root, encoding: 'utf8' });
 	const files = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' });
 	if (head.status !== 0 || files.status !== 0) throw new Error('Full prerequisite suite requires exact Git candidate custody.');
@@ -49,10 +49,21 @@ function candidate(root: string) {
 	return { commit: head.stdout.trim(), sourceDigest: digest.digest('hex') };
 }
 
+export function custodyDiagnostics(candidates: ReadonlyMap<string, ReturnType<typeof candidate>>): string[] {
+	return [...candidates].flatMap(([root, expected]) => {
+		try {
+			const current = candidate(root);
+			if (current.commit === expected.commit && current.sourceDigest === expected.sourceDigest) return [];
+		} catch { /* Lost custody is not a passing candidate. */ }
+		return [`${root}: prerequisite candidate changed or exact Git custody became unavailable.`];
+	});
+}
+
 /** Complete declared owner suites, once per invocation, before any scene starts. */
 export function runPrerequisites(plan: LocalGuaranteePlan, output: string) {
 	const roots = [...new Set(plan.entries.flatMap(entry => entry.verifierRefs.map(ref => realpathSync(plan.verifiers[ref]!.root))))];
 	const receipts: string[] = [], diagnostics: string[] = [];
+	const candidates = new Map<string, ReturnType<typeof candidate>>();
 	for (const root of roots) {
 		const receiptPath = resolve(output, 'evidence', `prerequisite-${createHash('sha256').update(root).digest('hex')}.json`);
 		let passed = false, reason = '', custody: ReturnType<typeof candidate> | null = null;
@@ -75,11 +86,14 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string) {
 			const after = candidate(root);
 			passed = status === 0 && !result.error && fullSuitePassed(report) && after.commit === custody.commit && after.sourceDigest === custody.sourceDigest;
 			if (!passed) reason = 'Full prerequisite suite failed, skipped assertions, lacked complete evidence, or changed the candidate.';
+			else candidates.set(root, custody);
 		} catch { reason = 'Full prerequisite suite entrypoint, execution, evidence, or exact candidate custody is unavailable.'; }
 		writeFileSync(receiptPath, JSON.stringify({ root, ...custody, command: [process.execPath, ...command], startedAt,
 			completedAt: new Date().toISOString(), passed, exitCode: status, signal, checks, reason }, null, 2));
 		receipts.push(relative(output, receiptPath));
 		if (!passed) diagnostics.push(`${root}: prerequisite unit/integration suite did not pass. ${reason}`);
 	}
-	return { receipts, diagnostics };
+	if (!roots.length) diagnostics.push('No participating prerequisite owner has exact candidate custody.');
+	diagnostics.push(...custodyDiagnostics(candidates));
+	return { receipts, diagnostics, candidates };
 }

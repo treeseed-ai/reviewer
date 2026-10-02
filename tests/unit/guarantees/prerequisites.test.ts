@@ -1,8 +1,9 @@
 import { afterEach, expect, it } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { fullSuitePassed, ownerTestCommand } from '../../../src/verifiers/guarantees/prerequisites.ts';
+import { candidate, custodyDiagnostics, fullSuitePassed, ownerTestCommand } from '../../../src/verifiers/guarantees/prerequisites.ts';
 
 const report = () => ({ success: true, numTotalTests: 2, numPassedTests: 2, numFailedTests: 0,
 	numPendingTests: 0, numTodoTests: 0, numFailedTestSuites: 0, numPendingTestSuites: 0,
@@ -37,4 +38,24 @@ it('resolves the declared complete test entrypoint without filters and rejects c
 		{test:'npm run all',all:'vitest run',preall:'echo partial'}]) {
 		save(scripts); expect(() => ownerTestCommand(root)).toThrow();
 	}
+});
+
+it('compares both exact HEAD and source bytes without disclosing source contents', () => {
+	const root = mkdtempSync(resolve(tmpdir(),'prerequisite-custody-')); roots.push(root);
+	writeFileSync(resolve(root,'candidate.ts'),'private source content');
+	for (const args of [['init','-q'],['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Candidate']])
+		expect(spawnSync('git',args,{cwd:root}).status).toBe(0);
+	const expected = candidate(root);
+	expect(custodyDiagnostics(new Map([[root,expected]]))).toEqual([]);
+	for (const patch of [{commit:'0'.repeat(40)},{sourceDigest:'0'.repeat(64)}]) {
+		const errors = custodyDiagnostics(new Map([[root,{...expected,...patch}]]));
+		expect(errors).toHaveLength(1); expect(errors.join(' ')).not.toContain('private source content');
+	}
+	writeFileSync(resolve(root,'candidate.ts'),'changed private content');
+	expect(custodyDiagnostics(new Map([[root,expected]]))).toHaveLength(1);
+});
+
+it('rejects missing candidate custody without throwing or substituting an old receipt', () => {
+	const root = mkdtempSync(resolve(tmpdir(),'prerequisite-no-git-')); roots.push(root);
+	expect(custodyDiagnostics(new Map([[root,{commit:'0'.repeat(40),sourceDigest:'0'.repeat(64)}]]))).toHaveLength(1);
 });

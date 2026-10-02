@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { parse } from 'yaml';
 import { acceptanceCriteria, acceptanceCoverage, type AcceptanceBinding } from './acceptance-spec.ts';
-import { runPrerequisites, ownerTestCommand } from './prerequisites.ts';
+import { runPrerequisites, ownerTestCommand, custodyDiagnostics } from './prerequisites.ts';
 import type { GuaranteeDiagnostic, GuaranteePlanEntry, GuaranteePlanReport, GuaranteeRunReport, GuaranteeRunStep, GuaranteeRunStatus, GuaranteeVerifierDefinition } from '@treeseed/sdk/guarantees';
 
 type Row = Record<string, unknown>;
@@ -154,7 +154,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	const scope = plan.entries[0]?.scope ?? 'local-component-tests';
 	const checks = new Map<string, { status: 'passed' | 'failed' | 'blocked'; evidence: string[]; diagnostics: GuaranteeDiagnostic[] }>();
 	const blockedGuarantees = new Set<string>(), passedGuarantees = new Set<string>();
-	const prerequisites = plan.ok ? runPrerequisites(plan, output) : { receipts: [], diagnostics: [] };
+	const prerequisites = plan.ok ? runPrerequisites(plan, output) : { receipts: [], diagnostics: [], candidates: new Map() };
 	const prerequisiteDiagnostics = prerequisites.diagnostics.map(diagnostic);
 	if (plan.ok && !prerequisiteDiagnostics.length) for (const entry of plan.entries) {
 		const dependencies = entry.manifest.dependencies as { guarantees?: string[] } | undefined;
@@ -166,6 +166,11 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 			continue;
 		}
 		if (checks.has(ref)) continue;
+		const custodyErrors = custodyDiagnostics(prerequisites.candidates).map(diagnostic);
+		if (custodyErrors.length) {
+			checks.set(ref, { status: 'blocked', evidence: [], diagnostics: custodyErrors });
+			continue;
+		}
 		const binding = plan.verifiers[ref]!;
 		if (binding.definition.kind !== 'vitestCase' && binding.definition.kind !== 'nodeTestCase') continue;
 		const { testFile, testName } = binding.definition;
@@ -192,10 +197,12 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 				&& report.numPassedTests > 0 && report.numFailedTests === 0 && observed.length === report.numPassedTests
 				&& observed.every(check => check.status === 'passed' && Number.isFinite(check.duration) && check.duration >= 0);
 		} catch { /* Missing/malformed evidence fails closed. */ }
+		const afterCustodyErrors = custodyDiagnostics(prerequisites.candidates).map(diagnostic);
+		passed = passed && !afterCustodyErrors.length;
 		writeFileSync(reportPath, JSON.stringify({ verifierId: ref, scope, testFile, testName, sourceDigest,
 			timeoutMs, processErrorCode: result.error && 'code' in result.error ? result.error.code : null,
-			exitCode: result.status, signal: result.signal, passed, checks: observed }, null, 2));
-		checks.set(ref, { status: passed ? 'passed' : 'failed', evidence: [relative(output, reportPath)], diagnostics: passed ? [] : [diagnostic('Exact coded verifier did not pass.')] });
+			exitCode: result.status, signal: result.signal, passed, checks: observed, diagnostics: afterCustodyErrors }, null, 2));
+		checks.set(ref, { status: passed ? 'passed' : 'failed', evidence: [relative(output, reportPath)], diagnostics: passed ? [] : [diagnostic('Exact coded verifier did not pass.'), ...afterCustodyErrors] });
 		if (!passed && entry.sceneVerifierRefs?.includes(ref)) failedSceneStep = true;
 		}
 		if (entry.verifierRefs.every(ref => checks.get(ref)?.status === 'passed')) passedGuarantees.add(entry.id);

@@ -1,6 +1,31 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.exact-candidate:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: compares both exact HEAD and source bytes without disclosing source contents
+  reviewer.prerequisites.lost-candidate:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects missing candidate custody without throwing or substituting an old receipt
+  reviewer.prerequisites.cross-owner-change:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks all scenes when a later owner suite changes an earlier tested candidate
+  reviewer.prerequisites.scene-change:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects zero-exit scene candidate changes before another scene can execute
+  reviewer.prerequisites.final-custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains passed suite receipts but fails a final scene that destroys Git custody
   reviewer.prerequisites.complete:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
