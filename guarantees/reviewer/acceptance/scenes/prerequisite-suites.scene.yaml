@@ -1,0 +1,40 @@
+schemaVersion: treeseed.scene/v1
+id: reviewer.acceptance.prerequisites
+scope: local-component-tests
+workflow:
+  - id: complete
+    action: {verifier: reviewer.prerequisites.complete}
+    expect: {status: passed}
+  - id: malformed
+    action: {verifier: reviewer.prerequisites.malformed}
+    expect: {status: passed}
+  - id: entrypoint
+    action: {verifier: reviewer.prerequisites.entrypoint}
+    expect: {status: passed}
+  - id: order
+    action: {verifier: reviewer.prerequisites.order}
+    expect: {status: passed}
+  - id: failed
+    action: {verifier: reviewer.prerequisites.failed}
+    expect: {status: passed}
+  - id: skipped
+    action: {verifier: reviewer.prerequisites.skipped}
+    expect: {status: passed}
+  - id: missing
+    action: {verifier: reviewer.prerequisites.missing}
+    expect: {status: passed}
+  - id: empty
+    action: {verifier: reviewer.prerequisites.empty}
+    expect: {status: passed}
+  - id: mutation
+    action: {verifier: reviewer.prerequisites.mutation}
+    expect: {status: passed}
+  - id: deduplicate
+    action: {verifier: reviewer.prerequisites.deduplicate}
+    expect: {status: passed}
+  - id: owners
+    action: {verifier: reviewer.prerequisites.owners}
+    expect: {status: passed}
+  - id: custody
+    action: {verifier: reviewer.prerequisites.custody}
+    expect: {status: passed}

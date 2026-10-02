@@ -2,20 +2,29 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSyn
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import { localRequestDiagnostics, planLocalGuarantees, runLocalGuarantees, verifierTimeout } from '../../src/verifiers/guarantees/command.ts';
 
 const roots: string[] = [];
+const fullSuiteReport = {success:true,numTotalTests:2,numPassedTests:2,numFailedTests:0,numPendingTests:0,numTodoTests:0,
+	numFailedTestSuites:0,numPendingTestSuites:0,testResults:[{assertionResults:[
+		{title:'unit prerequisite',status:'passed',duration:1},{title:'integration prerequisite',status:'passed',duration:1}]}]};
+const caseProgram = (source: string) => `if(!process.argv.includes('-t'))process.stdout.write(${JSON.stringify(JSON.stringify(fullSuiteReport))});else{${source}}`;
 function fixture() {
 	const root = mkdtempSync(resolve(tmpdir(), 'treeseed-guarantee-tests-'));
 	roots.push(root);
 	mkdirSync(resolve(root, 'guarantees/verifiers'), { recursive: true });
 	mkdirSync(resolve(root, 'tests'), { recursive: true });
 	mkdirSync(resolve(root, 'node_modules/vitest'), { recursive: true });
+	writeFileSync(resolve(root, 'node_modules/vitest/vitest.mjs'), caseProgram(''));
+	writeFileSync(resolve(root, '.gitignore'), 'node_modules\n.treeseed\n');
 	writeFileSync(resolve(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }));
 	writeFileSync(resolve(root, 'tests/proof.test.ts'), 'A bound test source.');
 	writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), 'id: proof\napi:\n  verifierRefs: [proof.check]\n');
 	writeFileSync(resolve(root, 'guarantees/verifiers/proof.verifiers.yaml'),
 		'verifiers:\n  proof.check:\n    kind: vitestCase\n    ownerPackage: fixture\n    testFile: tests/proof.test.ts\n    testName: proves the boundary\n');
+	for (const args of [['init','-q'],['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Fixture candidate']])
+		expect(spawnSync('git', args, {cwd:root}).status).toBe(0);
 	return root;
 }
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -182,18 +191,19 @@ describe('package-owned guarantee execution', () => {
 		{},
 	])('fails closed on zero tests, failed checks and malformed result contracts: %j', result => {
 		const root = fixture();
-		writeFileSync(resolve(root, 'node_modules/vitest/vitest.mjs'), `process.stdout.write(${JSON.stringify(JSON.stringify(result))});`);
+		writeFileSync(resolve(root, 'node_modules/vitest/vitest.mjs'), caseProgram(`process.stdout.write(${JSON.stringify(JSON.stringify(result))});`));
 		const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'regression');
 		expect(report.ok).toBe(false);
 		expect(report.counts.failed).toBe(1);
 	});
 	it('records component scope and immutable receipts without claiming live golden acceptance', () => {
 		const root = fixture();
-		writeFileSync(resolve(root, 'node_modules/vitest/vitest.mjs'), 'process.stdout.write(JSON.stringify({success:true,numPassedTests:1,numFailedTests:0,testResults:[{assertionResults:[{title:"proves the boundary",status:"passed",duration:1}]}]}));');
+		writeFileSync(resolve(root, 'node_modules/vitest/vitest.mjs'), caseProgram('process.stdout.write(JSON.stringify({success:true,numPassedTests:1,numFailedTests:0,testResults:[{assertionResults:[{title:"proves the boundary",status:"passed",duration:1}]}]}));'));
 		const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'regression');
 		expect(report.ok).toBe(true);
 		expect(report.scope).toBe('local-component-tests');
-		expect(report.results[0]?.evidence).toHaveLength(1);
+		expect(report.results[0]?.evidence).toHaveLength(2);
+		expect(report.results[0]?.evidence[1]).toContain('prerequisite-');
 		expect(() => runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'regression')).toThrow('immutable');
 	});
 	it('blocks the whole run on unresolved dependencies', () => {
@@ -213,7 +223,7 @@ describe('package-owned guarantee execution', () => {
 		writeFileSync(resolve(root, 'guarantees/downstream.guarantee.yaml'), 'id: downstream\ndependencies: { guarantees: [proof] }\napi: { verifierRefs: [proof.check] }');
 		const plan = planLocalGuarantees(root, ['downstream']);
 		expect(plan.entries.map(entry => entry.id)).toEqual(['proof', 'downstream']);
-		writeFileSync(resolve(root, 'node_modules/vitest/vitest.mjs'), 'process.stdout.write(JSON.stringify({success:false,numPassedTests:0,numFailedTests:1,testResults:[]}));');
+		writeFileSync(resolve(root, 'node_modules/vitest/vitest.mjs'), caseProgram('process.stdout.write(JSON.stringify({success:false,numPassedTests:0,numFailedTests:1,testResults:[]}));'));
 		const report = runLocalGuarantees(root, plan, 'regression');
 		expect(report.results.map(result => result.status)).toEqual(['failed', 'blocked']);
 		expect(report.ok).toBe(false);
