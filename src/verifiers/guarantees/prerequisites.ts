@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, constants, existsSync, fstatSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve, relative, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -81,11 +81,24 @@ export function candidate(root: string) {
 	const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: root, encoding: 'utf8' });
 	const files = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' });
 	if (head.status !== 0 || files.status !== 0) throw new Error('Full prerequisite suite requires exact Git candidate custody.');
-	const digest = createHash('sha256');
+	const digest = createHash('sha256'), canonicalRoot=realpathSync(root);
 	for (const path of [...new Set(files.stdout.split('\0').filter(Boolean))].sort()) {
-		digest.update(path); digest.update('\0');
-		digest.update(readFileSync(resolve(root, path)));
-		digest.update('\0');
+		const source=resolve(canonicalRoot,path), metadata=lstatSync(source);
+		const link=metadata.isSymbolicLink()?readlinkSync(source):null, actual=realpathSync(source), local=relative(canonicalRoot,actual);
+		if(local==='..'||local.startsWith(`..${sep}`)||local.startsWith(sep))throw new Error('Full prerequisite source escapes its owner.');
+		const target=lstatSync(actual);
+		if(!target.isFile()||(target.mode&0o444)===0)throw new Error('Full prerequisite source requires readable regular bytes.');
+		const descriptor=openSync(actual,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
+		try {
+			const opened=fstatSync(descriptor);
+			if(!opened.isFile()||(opened.mode&0o444)===0||opened.ino!==target.ino||opened.dev!==target.dev)
+				throw new Error('Full prerequisite source requires readable regular bytes.');
+			const bytes=readFileSync(descriptor), after=fstatSync(descriptor);
+			if(after.size!==opened.size||bytes.length!==opened.size||after.mtimeMs!==opened.mtimeMs||after.ctimeMs!==opened.ctimeMs
+				||realpathSync(source)!==actual||(link!==null?readlinkSync(source)!==link:lstatSync(source).isSymbolicLink()))
+				throw new Error('Full prerequisite source changed while reading.');
+			digest.update(JSON.stringify([path,link,opened.mode&0o7777,bytes.length])).update('\0').update(bytes).update('\0');
+		} finally {closeSync(descriptor);}
 	}
 	return { commit: head.stdout.trim(), sourceDigest: digest.digest('hex') };
 }

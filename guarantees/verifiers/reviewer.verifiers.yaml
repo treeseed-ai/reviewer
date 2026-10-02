@@ -276,6 +276,46 @@ verifiers:
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/integration/guarantee-prerequisites.test.ts
     testName: rejects an escaped test config and missing Git custody without scene side effects
+  reviewer.prerequisites.source-mode:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: binds executable modes for tracked and untracked files even when Git ignores file modes
+  reviewer.prerequisites.source-permissions:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: binds readable access permissions and special mode bits without relying on Git executable state
+  reviewer.prerequisites.source-link:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: binds symlink identity and file kind even when both targets have identical readable bytes
+  reviewer.prerequisites.source-unsafe:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects escaped broken cyclic directory and unreadable source instead of claiming byte custody
+  reviewer.prerequisites.suite-mode:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks a zero-exit complete suite that changes executable source mode without changing bytes
+  reviewer.prerequisites.scene-link:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects native scene symlink retargeting between equal-byte sources before the next scene
+  reviewer.prerequisites.source-escaped:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects escaped source in a bounded native process before any full-suite side effect
+  reviewer.prerequisites.source-fifo:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects fifo source in a bounded native process before any full-suite side effect
   reviewer.workplan.package-local:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
