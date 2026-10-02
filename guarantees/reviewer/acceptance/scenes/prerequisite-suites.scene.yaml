@@ -2,6 +2,21 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: native-owner-closure
+    action: {verifier: reviewer.prerequisites.native-owner-closure}
+    expect: {status: passed}
+  - id: native-owner-ambiguity
+    action: {verifier: reviewer.prerequisites.native-owner-ambiguity}
+    expect: {status: passed}
+  - id: native-owner-custody
+    action: {verifier: reviewer.prerequisites.native-owner-custody}
+    expect: {status: passed}
+  - id: all-owner-entrypoints
+    action: {verifier: reviewer.prerequisites.all-owner-entrypoints}
+    expect: {status: passed}
+  - id: native-owner-root
+    action: {verifier: reviewer.prerequisites.native-owner-root}
+    expect: {status: passed}
   - id: own-root
     action: {verifier: reviewer.prerequisites.own-root}
     expect: {status: passed}

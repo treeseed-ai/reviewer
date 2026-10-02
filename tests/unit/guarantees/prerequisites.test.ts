@@ -139,3 +139,32 @@ it('rejects missing duplicate malformed and unbound owner or target declarations
 		expect(()=>participatingOwners(plan,workspace)).toThrow();
 	}
 });
+
+it('discovers declared non-npm projects through their own YAML target closure without substituting a nested package',()=>{
+	const {workspace,root,plan,make}=ownerCatalog();
+	const native=make('native',[{id:'service',dependencies:[{id:'owner',target:'runtime'}]},
+		{id:'unused',dependencies:[{id:'absent',target:'runtime'}]}]);
+	rmSync(resolve(native,'package.json'));
+	writeFileSync(resolve(root,'treeseed.package.yaml'),JSON.stringify({development:{project:{id:'owner'},targets:[
+		{id:'runtime',dependencies:[{id:'native',target:'service'},{id:'native',target:'service'}]}]}}));
+	const nested=resolve(native,'packages','client');mkdirSync(nested,{recursive:true});
+	writeFileSync(resolve(nested,'package.json'),JSON.stringify({name:'@fixture/native-client'}));
+	symlinkSync(native,resolve(workspace,'packages','native-alias'),'dir');
+	expect(participatingOwners(plan,workspace)).toEqual([root,native]);
+	expect(participatingOwners(plan,workspace)).not.toContain(nested);
+});
+
+it('rejects ambiguous native YAML identities instead of preferring an npm project with the same identity',()=>{
+	for(const mode of ['native-duplicate','npm-duplicate','missing-target']) {
+		const {workspace,root,plan,make}=ownerCatalog();
+		const native=make('native',[{id:'service',dependencies:[]}]);rmSync(resolve(native,'package.json'));
+		writeFileSync(resolve(root,'treeseed.package.yaml'),JSON.stringify({development:{project:{id:'owner'},targets:[
+			{id:'runtime',dependencies:[{id:'native',target:mode==='missing-target'?'absent':'service'}]}]}}));
+		if(mode!=='missing-target') {
+			const duplicate=make('duplicate',[{id:'service',dependencies:[]}]);
+			if(mode==='native-duplicate')rmSync(resolve(duplicate,'package.json'));
+			writeFileSync(resolve(duplicate,'treeseed.package.yaml'),JSON.stringify({development:{project:{id:'native'},targets:[{id:'service'}]}}));
+		}
+		expect(()=>participatingOwners(plan,workspace),mode).toThrow();
+	}
+});
