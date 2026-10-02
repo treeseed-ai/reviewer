@@ -24,6 +24,18 @@ test names, skipped tests, unavailable services and incomplete evidence cannot
 pass. Failed native checks retain error classification and source location,
 never raw credential-bearing test output.
 
+Every invocation runs complete declared owner unit/integration suites before
+any coded scene, once per owner, with ongoing exact Git/source custody.
+Canonical unfiltered Vitest entrypoints and owner-contained native Node runners
+are supported. Native entrypoints retain their original `npm test` build and
+recursive discovery; they must forward the standard reporter/destination pair.
+The same Node terminal-event normalizer reports source and compiled execution;
+test stdout and error prose are not prerequisite evidence. Failed, skipped,
+todo, cancelled, empty, filtered, malformed, missing or candidate-mutating
+results block scenes. Unsupported entrypoints and unknown owners remain blocked;
+this does not attest arbitrary browser/managed admission or selected runtime
+artifact/source correspondence.
+
 Package-owned test verifier declarations may set `timeoutMs` to an integer
 between 1 and 86,400,000 milliseconds for long campaign scenes. The default
 remains 120,000. Invalid values fail during planning; an expired process

@@ -1,6 +1,51 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.native-containers:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-reporter.test.ts
+    testName: blocks failed skipped and todo suite containers even when an aggregate claims every test passed
+  reviewer.prerequisites.native-complete:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: admits complete native suites through their original build and one root reporter before scenes
+  reviewer.prerequisites.native-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: blocks native scene side effects for failed skipped todo cancelled crashed missing empty and filtered full suites
+  reviewer.prerequisites.native-mutation:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: blocks a zero-exit native suite that changes the exact source candidate
+  reviewer.prerequisites.native-reporter-custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: blocks changed native reporter artifact custody even when all source tests pass
+  reviewer.prerequisites.native-source:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: uses the same native terminal reporter from TypeScript source without copying stale build output
+  reviewer.prerequisites.native-events:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-reporter.test.ts
+    testName: normalizes native terminal assertions and aggregate counts without suite containers or private output
+  reviewer.prerequisites.native-summary:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-reporter.test.ts
+    testName: rejects missing duplicate malformed empty inconsistent and unsuccessful native summaries
+  reviewer.prerequisites.native-assertions:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-reporter.test.ts
+    testName: rejects skipped todo failed and unmeasured native assertions without retaining failure prose
   reviewer.prerequisites.transitive-custody:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
