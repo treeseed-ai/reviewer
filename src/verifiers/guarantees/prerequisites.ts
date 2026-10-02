@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve, relative, sep } from 'node:path';
+import { tmpdir } from 'node:os';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { parse } from 'yaml';
 import type { LocalGuaranteePlan } from './command.ts';
 
@@ -124,27 +127,57 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 		const receiptPath = resolve(output, 'evidence', `prerequisite-${createHash('sha256').update(root).digest('hex')}.json`);
 		let passed = false, reason = '', custody: ReturnType<typeof candidate> | null = null;
 		let command: string[] = [], status: number | null = null, signal: string | null = null, checks: unknown = null;
+		let temporary: string | undefined;
+		let reporter: string | undefined, reporterDigest: string | undefined;
 		const startedAt = new Date().toISOString();
 		try {
 			custody = candidate(root);
 			const script = ownerTestCommand(root);
 			const match = /^vitest run(?: --config (\S+))?$/u.exec(script);
-			if (!match) throw new Error('Full prerequisite suite needs a supported unfiltered machine-readable test entrypoint.');
-			const config = match[1] ? realpathSync(resolve(root, match[1])) : null;
-			const configPath = config ? relative(root, config) : '';
-			if (configPath === '..' || configPath.startsWith(`..${sep}`) || configPath.startsWith(sep)) throw new Error('Full prerequisite test config escapes its owner.');
-			command = [realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', ...(config ? ['--config', config] : []), '--reporter=json'];
-			const result = spawnSync(process.execPath, command, { cwd: root, encoding: 'utf8', timeout: 1_200_000, maxBuffer: 32 * 1024 * 1024 });
-			status = result.status; signal = result.signal;
-			const report = JSON.parse(result.stdout);
+			let result, report;
+			if (match) {
+				const config = match[1] ? realpathSync(resolve(root, match[1])) : null;
+				const configPath = config ? relative(root, config) : '';
+				if (configPath === '..' || configPath.startsWith(`..${sep}`) || configPath.startsWith(sep)) throw new Error('Full prerequisite test config escapes its owner.');
+				command = [process.execPath,realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', ...(config ? ['--config', config] : []), '--reporter=json'];
+				result = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 1_200_000, maxBuffer: 32 * 1024 * 1024 });
+				status = result.status; signal = result.signal;
+				report = JSON.parse(result.stdout);
+			} else {
+				// Preserve the declared npm entrypoint, including its original build and runner.
+				const native = /^(?:npm run [\w:-]+ && )?node(?: --import tsx)? ([\w./-]+\.(?:ts|js|mjs))$/u.exec(script);
+				if (!native) throw new Error('Native prerequisite reporting requires an unfiltered declared runner.');
+				const runnerPath = relative(root,realpathSync(resolve(root,native[1]!)));
+				if (runnerPath === '..' || runnerPath.startsWith(`..${sep}`) || runnerPath.startsWith(sep)) throw new Error('Native full-suite runner escapes its owner.');
+				reporter = realpathSync(fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`,import.meta.url)));
+				reporterDigest = createHash('sha256').update(readFileSync(reporter)).digest('hex');
+				// Node loads custom reporters before --import hooks. Reuse tsx's scoped
+				// import for source execution; compiled execution imports the same module.
+				const reporterSpecifier = reporter.endsWith('.ts')
+					? `data:text/javascript,${encodeURIComponent(`import {tsImport} from ${JSON.stringify(pathToFileURL(createRequire(import.meta.url).resolve('tsx/esm/api')).href)};export default (await tsImport(${JSON.stringify(pathToFileURL(reporter).href)},${JSON.stringify(import.meta.url)})).default;`)}`
+					: reporter;
+				temporary = mkdtempSync(resolve(tmpdir(),'guarantee-native-suite-'));
+				const destination = resolve(temporary,'report.json');
+				command = ['npm','test','--',`--test-reporter=${reporterSpecifier}`,`--test-reporter-destination=${destination}`];
+				result = spawnSync(command[0]!,command.slice(1),{cwd:root,encoding:'utf8',timeout:1_200_000,maxBuffer:32*1024*1024});
+				status = result.status; signal = result.signal;
+				report = JSON.parse(readFileSync(destination,'utf8'));
+			}
 			checks = { total: report.numTotalTests, passed: report.numPassedTests, failed: report.numFailedTests,
-				skipped: report.numPendingTests, todo: report.numTodoTests };
+				skipped: report.numPendingTests, todo: report.numTodoTests,
+				failures: Array.isArray(report.testResults) ? report.testResults.flatMap((file: unknown) => {
+					const assertions = row(file).assertionResults;
+					return Array.isArray(assertions) ? assertions.filter(value=>row(value).status !== 'passed')
+						.map(value=>({title:row(value).title,status:row(value).status})) : [];
+				}) : [] };
 			const after = candidate(root);
-			passed = status === 0 && !result.error && fullSuitePassed(report) && after.commit === custody.commit && after.sourceDigest === custody.sourceDigest;
+			passed = status === 0 && !result.error && fullSuitePassed(report) && after.commit === custody.commit && after.sourceDigest === custody.sourceDigest
+				&& (!reporter || createHash('sha256').update(readFileSync(reporter)).digest('hex') === reporterDigest);
 			if (!passed) reason = 'Full prerequisite suite failed, skipped assertions, lacked complete evidence, or changed the candidate.';
 			else candidates.set(root, custody);
 		} catch { reason = 'Full prerequisite suite entrypoint, execution, evidence, or exact candidate custody is unavailable.'; }
-		writeFileSync(receiptPath, JSON.stringify({ root, ...custody, command: [process.execPath, ...command], startedAt,
+		finally { if (temporary) rmSync(temporary,{recursive:true,force:true}); }
+		writeFileSync(receiptPath, JSON.stringify({ root, ...custody, command, startedAt,
 			completedAt: new Date().toISOString(), passed, exitCode: status, signal, checks, reason }, null, 2));
 		receipts.push(relative(output, receiptPath));
 		if (!passed) diagnostics.push(`${root}: prerequisite unit/integration suite did not pass. ${reason}`);

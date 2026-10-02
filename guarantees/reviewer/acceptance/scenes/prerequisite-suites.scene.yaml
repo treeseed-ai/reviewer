@@ -2,6 +2,39 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: native-interruption
+    action: {verifier: reviewer.prerequisites.native-interruption}
+    expect: {status: passed}
+  - id: native-interruption-events
+    action: {verifier: reviewer.prerequisites.native-interruption-events}
+    expect: {status: passed}
+  - id: native-complete
+    action: {verifier: reviewer.prerequisites.native-complete}
+    expect: {status: passed}
+  - id: native-denial
+    action: {verifier: reviewer.prerequisites.native-denial}
+    expect: {status: passed}
+  - id: native-mutation
+    action: {verifier: reviewer.prerequisites.native-mutation}
+    expect: {status: passed}
+  - id: native-reporter-custody
+    action: {verifier: reviewer.prerequisites.native-reporter-custody}
+    expect: {status: passed}
+  - id: native-source
+    action: {verifier: reviewer.prerequisites.native-source}
+    expect: {status: passed}
+  - id: native-events
+    action: {verifier: reviewer.prerequisites.native-events}
+    expect: {status: passed}
+  - id: native-summary
+    action: {verifier: reviewer.prerequisites.native-summary}
+    expect: {status: passed}
+  - id: native-assertions
+    action: {verifier: reviewer.prerequisites.native-assertions}
+    expect: {status: passed}
+  - id: native-containers
+    action: {verifier: reviewer.prerequisites.native-containers}
+    expect: {status: passed}
   - id: transitive-custody
     action: {verifier: reviewer.prerequisites.transitive-custody}
     expect: {status: passed}
