@@ -19,6 +19,7 @@ function fixture() {
 	writeFileSync(resolve(root, 'node_modules/vitest/vitest.mjs'), caseProgram(''));
 	writeFileSync(resolve(root, '.gitignore'), 'node_modules\n.treeseed\n');
 	writeFileSync(resolve(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }));
+	writeFileSync(resolve(root, 'treeseed.package.yaml'), JSON.stringify({development:{project:{id:'fixture'},targets:[{id:'runtime',dependencies:[]}]}}));
 	writeFileSync(resolve(root, 'tests/proof.test.ts'), 'A bound test source.');
 	writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), 'id: proof\napi:\n  verifierRefs: [proof.check]\n');
 	writeFileSync(resolve(root, 'guarantees/verifiers/proof.verifiers.yaml'),

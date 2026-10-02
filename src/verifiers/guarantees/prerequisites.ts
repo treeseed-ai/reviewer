@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { resolve, relative, sep } from 'node:path';
+import { parse } from 'yaml';
 import type { LocalGuaranteePlan } from './command.ts';
 
 type Row = Record<string, unknown>;
@@ -59,11 +60,66 @@ export function custodyDiagnostics(candidates: ReadonlyMap<string, ReturnType<ty
 	});
 }
 
+/** Reuse declared package owners and runtime target dependencies, never a role/owner list. */
+export function participatingOwners(plan: LocalGuaranteePlan, workspace: string): string[] {
+	const packageDirectory = resolve(workspace, 'packages');
+	const catalog = [...new Set([workspace, ...Object.values(plan.verifiers).map(binding => binding.root),
+		...(existsSync(packageDirectory) ? readdirSync(packageDirectory).map(name => resolve(packageDirectory,name)) : [])]
+		.filter(root => existsSync(resolve(root,'package.json'))).map(root => realpathSync(root)))];
+	const packages = new Map<string,string[]>(), projects = new Map<string,string[]>(), documents = new Map<string,Row>();
+	const index = (map: Map<string,string[]>, id: unknown, root: string) => {
+		if (typeof id === 'string' && id) map.set(id,[...(map.get(id) ?? []),root]);
+	};
+	for (const root of catalog) {
+		index(packages,row(JSON.parse(readFileSync(resolve(root,'package.json'),'utf8'))).name,root);
+		const path = resolve(root,'treeseed.package.yaml');
+		if (!existsSync(path)) continue;
+		const development = row(row(parse(readFileSync(path,'utf8'))).development);
+		documents.set(root,development); index(projects,row(development.project).id,root);
+	}
+	const unique = (map: Map<string,string[]>, id: string) => {
+		const roots = map.get(id);
+		if (roots?.length !== 1) throw new Error('Participating owner source is missing or ambiguous.');
+		return roots[0]!;
+	};
+	const owners = new Set<string>();
+	for (const entry of plan.entries) {
+		if (entry.ownerPackage) owners.add(unique(packages,entry.ownerPackage));
+		for (const ref of entry.verifierRefs) owners.add(realpathSync(plan.verifiers[ref]!.root));
+	}
+	if (!plan.entries.some(entry => entry.scope === 'local-integrated-runtime')) return [...owners];
+	const visited = new Set<string>();
+	const visit = (root: string, targetId?: string) => {
+		const document = documents.get(root), projectId = row(document?.project).id;
+		if (typeof projectId !== 'string' || unique(projects,projectId) !== root || !Array.isArray(document?.targets)
+			|| !document.targets.length) throw new Error('Integrated owner runtime composition is unavailable.');
+		const targets = document.targets.map(row);
+		const ids = targets.map(target => target.id);
+		if (ids.some(id => typeof id !== 'string' || !id) || new Set(ids).size !== ids.length
+			|| (targetId && !ids.includes(targetId))) throw new Error('Integrated dependency target is missing or ambiguous.');
+		owners.add(root);
+		for (const target of targets.filter(target => !targetId || target.id === targetId)) {
+			const key = `${root}\0${target.id}`; if (visited.has(key)) continue; visited.add(key);
+			if (target.dependencies !== undefined && !Array.isArray(target.dependencies)) throw new Error('Integrated target dependencies are malformed.');
+			for (const value of (target.dependencies ?? []) as unknown[]) {
+				const dependency = row(value);
+				if (typeof dependency.id !== 'string' || !dependency.id || typeof dependency.target !== 'string' || !dependency.target)
+					throw new Error('Integrated dependency identity is unavailable.');
+				visit(unique(projects,dependency.id),dependency.target);
+			}
+		}
+	};
+	for (const root of [...owners]) visit(root);
+	return [...owners];
+}
+
 /** Complete declared owner suites, once per invocation, before any scene starts. */
-export function runPrerequisites(plan: LocalGuaranteePlan, output: string) {
-	const roots = [...new Set(plan.entries.flatMap(entry => entry.verifierRefs.map(ref => realpathSync(plan.verifiers[ref]!.root))))];
+export function runPrerequisites(plan: LocalGuaranteePlan, output: string, workspace: string) {
 	const receipts: string[] = [], diagnostics: string[] = [];
 	const candidates = new Map<string, ReturnType<typeof candidate>>();
+	let roots: string[];
+	try { roots = participatingOwners(plan,workspace); }
+	catch { return {receipts,candidates,diagnostics:['Participating prerequisite owner composition is missing, malformed or ambiguous.']}; }
 	for (const root of roots) {
 		const receiptPath = resolve(output, 'evidence', `prerequisite-${createHash('sha256').update(root).digest('hex')}.json`);
 		let passed = false, reason = '', custody: ReturnType<typeof candidate> | null = null;

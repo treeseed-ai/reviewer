@@ -148,3 +148,67 @@ it('retains passed suite receipts but fails a final scene that destroys Git cust
 	const receipt = JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/lost-custody',report.results[0]!.evidence.at(-1)!), 'utf8'));
 	expect(receipt).toMatchObject({passed:true,checks:{total:2,passed:2,failed:0}});
 });
+
+function compositionFixture(failing = false) {
+	const owner = fixture(), dependency = fixture(failing), transitive = fixture();
+	for (const [root, name, dependencies] of [
+		[owner, 'owner', [{id:'dependency',target:'runtime'}, {id:'transitive',target:'runtime'}]],
+		[dependency, 'dependency', [{id:'transitive',target:'runtime'}]],
+		[transitive, 'transitive', [{id:'owner',target:'runtime'}]],
+	] as const) {
+		const manifest = JSON.parse(readFileSync(resolve(root,'package.json'),'utf8'));
+		writeFileSync(resolve(root,'package.json'),JSON.stringify({...manifest,name}));
+		writeFileSync(resolve(root,'treeseed.package.yaml'),JSON.stringify({development:{project:{id:name},targets:[{id:'runtime',dependencies}]}}));
+	}
+	const plan = planLocalGuarantees(owner,['proof']); plan.entries[0]!.scope = 'local-integrated-runtime';
+	for (const [name, root] of [['dependency',dependency],['transitive',transitive]])
+		plan.verifiers[name!] = {...plan.verifiers['proof.scene']!,root:root!};
+	return {owner,dependency,transitive,plan};
+}
+
+it('runs declared transitive integrated owners once and blocks every scene on an indirect failure', () => {
+	for (const failing of [false,true]) {
+		const {owner,dependency,transitive,plan} = compositionFixture(failing);
+		const report = runLocalGuarantees(owner,plan,`composition-${failing}`);
+		expect(report.ok).toBe(!failing);
+		for (const root of [dependency,transitive])
+			expect(readFileSync(resolve(root,'.treeseed/order'),'utf8').trim().split('\n').sort()).toEqual(['integration','unit']);
+		expect(readFileSync(resolve(owner,'.treeseed/order'),'utf8').includes('scene')).toBe(!failing);
+		expect(new Set(report.results[0]!.evidence.filter(path=>path.includes('prerequisite-'))).size).toBe(3);
+	}
+});
+
+it('blocks unknown and ambiguous integrated dependencies before any native side effect', () => {
+	for (const mode of ['missing-owner','missing-target','ambiguous-owner','missing-composition']) {
+		const {owner,dependency,transitive,plan} = compositionFixture();
+		if (mode === 'missing-composition') rmSync(resolve(owner,'treeseed.package.yaml'));
+		else {
+			const document = JSON.parse(readFileSync(resolve(dependency,'treeseed.package.yaml'),'utf8'));
+			if (mode === 'ambiguous-owner') document.development.project.id = 'transitive';
+			else document.development.targets[0].dependencies = [{id:mode === 'missing-owner' ? 'absent' : 'transitive',target:'absent',locality:'remote'}];
+			writeFileSync(resolve(dependency,'treeseed.package.yaml'),JSON.stringify(document));
+		}
+		const report = runLocalGuarantees(owner,plan,mode);
+		expect(report.ok,mode).toBe(false);
+		for (const root of [owner,dependency,transitive]) expect(existsSync(resolve(root,'.treeseed/order')),mode).toBe(false);
+	}
+});
+
+it('tests the declared guarantee owner even when its verifier belongs to another package', () => {
+	const {owner,dependency,plan} = compositionFixture(true); plan.entries[0]!.scope = 'local-component-tests';
+	plan.entries[0]!.ownerPackage = 'dependency';
+	const report = runLocalGuarantees(owner,plan,'declared-owner');
+		expect(report.ok).toBe(false);
+		expect(readFileSync(resolve(dependency,'.treeseed/order'),'utf8')).not.toContain('scene');
+		expect(readFileSync(resolve(owner,'.treeseed/order'),'utf8')).not.toContain('scene');
+});
+
+it('retains ongoing custody of transitive owners throughout native scene execution', () => {
+	const {owner,transitive,plan} = compositionFixture();
+	writeFileSync(resolve(owner,'scene.ts'),`import test from 'node:test'; import {writeFileSync} from 'node:fs'; test('scene boundary',()=>{writeFileSync(${JSON.stringify(resolve(transitive,'tests/unit.test.ts'))},'changed after complete suite');});`);
+	const report = runLocalGuarantees(owner,plan,'transitive-custody');
+	expect(report.ok).toBe(false); expect(report.results[0]!.steps[0]!.status).toBe('failed');
+	expect(report.results[0]!.evidence.filter(path=>path.includes('prerequisite-'))).toHaveLength(3);
+	for (const path of report.results[0]!.evidence.filter(path=>path.includes('prerequisite-')))
+		expect(JSON.parse(readFileSync(resolve(owner,'.treeseed/guarantees/runs/transitive-custody',path),'utf8')).passed).toBe(true);
+});

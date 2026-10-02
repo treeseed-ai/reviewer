@@ -1,9 +1,10 @@
 import { afterEach, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { candidate, custodyDiagnostics, fullSuitePassed, ownerTestCommand } from '../../../src/verifiers/guarantees/prerequisites.ts';
+import { candidate, custodyDiagnostics, fullSuitePassed, ownerTestCommand, participatingOwners } from '../../../src/verifiers/guarantees/prerequisites.ts';
+import type { LocalGuaranteePlan } from '../../../src/verifiers/guarantees/command.ts';
 
 const report = () => ({ success: true, numTotalTests: 2, numPassedTests: 2, numFailedTests: 0,
 	numPendingTests: 0, numTodoTests: 0, numFailedTestSuites: 0, numPendingTestSuites: 0,
@@ -58,4 +59,51 @@ it('compares both exact HEAD and source bytes without disclosing source contents
 it('rejects missing candidate custody without throwing or substituting an old receipt', () => {
 	const root = mkdtempSync(resolve(tmpdir(),'prerequisite-no-git-')); roots.push(root);
 	expect(custodyDiagnostics(new Map([[root,{commit:'0'.repeat(40),sourceDigest:'0'.repeat(64)}]]))).toHaveLength(1);
+});
+
+function ownerCatalog() {
+	const workspace = mkdtempSync(resolve(tmpdir(),'prerequisite-owners-')); roots.push(workspace);
+	const make = (id: string, targets: unknown = [{id:'runtime',dependencies:[]}]) => {
+		const root = resolve(workspace,'packages',id); mkdirSync(root,{recursive:true});
+		writeFileSync(resolve(root,'package.json'),JSON.stringify({name:`@fixture/${id}`}));
+		writeFileSync(resolve(root,'treeseed.package.yaml'),JSON.stringify({development:{project:{id},targets}}));
+		return root;
+	};
+	const root = make('owner');
+	const plan = {entries:[{ownerPackage:'@fixture/owner',verifierRefs:['proof'],scope:'local-integrated-runtime'}],
+		verifiers:{proof:{root}},diagnostics:[],ok:true} as unknown as LocalGuaranteePlan;
+	return {workspace,root,plan,make};
+}
+
+it('resolves arbitrary workspace owners and only the declared transitive target closure', () => {
+	const {workspace,root,plan,make} = ownerCatalog();
+	const dependency = make('dependency',[{id:'runtime',dependencies:[{id:'owner',target:'runtime'}]},
+		{id:'unused',dependencies:[{id:'unknown',target:'runtime'}]}]);
+	writeFileSync(resolve(root,'treeseed.package.yaml'),JSON.stringify({development:{project:{id:'owner'},targets:[
+		{id:'runtime',dependencies:[{id:'dependency',target:'runtime'},{id:'dependency',target:'runtime'}]}]}}));
+	const unrelated = make('unrelated');
+	expect(participatingOwners(plan,workspace)).toEqual([root,dependency]);
+	expect(participatingOwners(plan,workspace)).not.toContain(unrelated);
+	plan.entries[0]!.scope = 'local-component-tests';
+	expect(participatingOwners(plan,workspace)).toEqual([root]);
+});
+
+it('rejects missing duplicate malformed and unbound owner or target declarations', () => {
+	for (const targets of [[],null,[{id:''}],[{id:'runtime'},{id:'runtime'}],
+		[{id:'runtime',dependencies:{}}],[{id:'runtime',dependencies:[{}]}],
+		[{id:'runtime',dependencies:[{id:'owner',target:'missing'}]}]]) {
+		const {workspace,plan,make} = ownerCatalog(); make('owner',targets);
+		expect(()=>participatingOwners(plan,workspace)).toThrow();
+	}
+	for (const mode of ['unknown-package','duplicate-package','duplicate-project','alias']) {
+		const {workspace,root,plan,make} = ownerCatalog();
+		if (mode === 'unknown-package') plan.entries[0]!.ownerPackage = '@fixture/unknown';
+		else if (mode === 'alias') { symlinkSync(root,resolve(workspace,'packages','alias')); expect(participatingOwners(plan,workspace)).toEqual([root]); continue; }
+		else {
+			const other = make('other');
+			writeFileSync(resolve(other,mode === 'duplicate-package' ? 'package.json' : 'treeseed.package.yaml'),JSON.stringify(
+				mode === 'duplicate-package' ? {name:'@fixture/owner'} : {development:{project:{id:'owner'},targets:[{id:'runtime'}]}}));
+		}
+		expect(()=>participatingOwners(plan,workspace)).toThrow();
+	}
 });

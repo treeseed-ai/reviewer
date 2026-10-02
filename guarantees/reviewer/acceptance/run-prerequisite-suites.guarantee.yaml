@@ -14,6 +14,12 @@ api:
   required: true
   verifierRefs: [reviewer.prerequisites.complete, reviewer.prerequisites.entrypoint]
 negativeCases:
+  - id: transitive-source-mutation
+    verifierRefs: [reviewer.prerequisites.transitive-custody]
+  - id: unresolved-composition
+    verifierRefs: [reviewer.prerequisites.invalid-composition, reviewer.prerequisites.unknown-owners]
+  - id: ignored-participating-owner
+    verifierRefs: [reviewer.prerequisites.transitive-suites, reviewer.prerequisites.declared-owner]
   - id: malformed-prerequisite
     verifierRefs: [reviewer.prerequisites.malformed]
   - id: failed-unselected-test
