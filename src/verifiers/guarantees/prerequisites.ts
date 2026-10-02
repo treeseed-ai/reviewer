@@ -41,13 +41,16 @@ export function fullSuitePassed(value: unknown): boolean {
 }
 
 export function candidate(root: string) {
+	const top = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' });
+	if (top.status !== 0 || realpathSync(top.stdout.trim()) !== realpathSync(root))
+		throw new Error('Full prerequisite suite requires its own exact Git source root.');
 	const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: root, encoding: 'utf8' });
 	const files = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' });
 	if (head.status !== 0 || files.status !== 0) throw new Error('Full prerequisite suite requires exact Git candidate custody.');
 	const digest = createHash('sha256');
 	for (const path of [...new Set(files.stdout.split('\0').filter(Boolean))].sort()) {
 		digest.update(path); digest.update('\0');
-		try { digest.update(readFileSync(resolve(root, path))); } catch { digest.update('missing'); }
+		digest.update(readFileSync(resolve(root, path)));
 		digest.update('\0');
 	}
 	return { commit: head.stdout.trim(), sourceDigest: digest.digest('hex') };
