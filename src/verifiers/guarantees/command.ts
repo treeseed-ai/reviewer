@@ -154,7 +154,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	const scope = plan.entries[0]?.scope ?? 'local-component-tests';
 	const checks = new Map<string, { status: 'passed' | 'failed' | 'blocked'; evidence: string[]; diagnostics: GuaranteeDiagnostic[] }>();
 	const blockedGuarantees = new Set<string>(), passedGuarantees = new Set<string>();
-	const prerequisites = plan.ok ? runPrerequisites(plan, output) : { receipts: [], diagnostics: [], candidates: new Map() };
+	const prerequisites = plan.ok ? runPrerequisites(plan, output, root) : { receipts: [], diagnostics: [], candidates: new Map() };
 	const prerequisiteDiagnostics = prerequisites.diagnostics.map(diagnostic);
 	if (plan.ok && !prerequisiteDiagnostics.length) for (const entry of plan.entries) {
 		const dependencies = entry.manifest.dependencies as { guarantees?: string[] } | undefined;

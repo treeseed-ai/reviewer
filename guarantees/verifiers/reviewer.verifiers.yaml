@@ -1,6 +1,36 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.transitive-custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains ongoing custody of transitive owners throughout native scene execution
+  reviewer.prerequisites.composition:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: resolves arbitrary workspace owners and only the declared transitive target closure
+  reviewer.prerequisites.invalid-composition:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects missing duplicate malformed and unbound owner or target declarations
+  reviewer.prerequisites.transitive-suites:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: runs declared transitive integrated owners once and blocks every scene on an indirect failure
+  reviewer.prerequisites.unknown-owners:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks unknown and ambiguous integrated dependencies before any native side effect
+  reviewer.prerequisites.declared-owner:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: tests the declared guarantee owner even when its verifier belongs to another package
   reviewer.prerequisites.exact-candidate:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"

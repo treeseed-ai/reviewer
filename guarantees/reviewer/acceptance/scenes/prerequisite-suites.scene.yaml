@@ -2,6 +2,24 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: transitive-custody
+    action: {verifier: reviewer.prerequisites.transitive-custody}
+    expect: {status: passed}
+  - id: declared-composition
+    action: {verifier: reviewer.prerequisites.composition}
+    expect: {status: passed}
+  - id: invalid-composition
+    action: {verifier: reviewer.prerequisites.invalid-composition}
+    expect: {status: passed}
+  - id: transitive-suites
+    action: {verifier: reviewer.prerequisites.transitive-suites}
+    expect: {status: passed}
+  - id: unknown-owners
+    action: {verifier: reviewer.prerequisites.unknown-owners}
+    expect: {status: passed}
+  - id: declared-owner
+    action: {verifier: reviewer.prerequisites.declared-owner}
+    expect: {status: passed}
   - id: exact-candidate
     action: {verifier: reviewer.prerequisites.exact-candidate}
     expect: {status: passed}
