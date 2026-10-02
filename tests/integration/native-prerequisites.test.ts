@@ -17,7 +17,7 @@ function fixture(mode='pass') {
 	writeFileSync(resolve(root,'build.ts'),"import {appendFileSync} from 'node:fs'; appendFileSync('.treeseed/order','build\\n');");
 	writeFileSync(resolve(root,'runner.ts'),"import {spawnSync} from 'node:child_process'; import {readdirSync} from 'node:fs'; const r=spawnSync(process.execPath,['--import','tsx','--test',...process.argv.slice(2),...readdirSync('tests').map(f=>'tests/'+f)],{stdio:'inherit'});process.exit(r.status??1);");
 	writeFileSync(resolve(root,'tests/unit.test.ts'),"import test from 'node:test'; import {appendFileSync} from 'node:fs'; test('unit',()=>{console.log('private fixture stdout');appendFileSync('.treeseed/order','unit\\n');});");
-	writeFileSync(resolve(root,'tests/integration.test.ts'),mode==='crash' ? "throw new Error('private fixture error');" : mode==='cancelled' ? "import test from 'node:test'; test('cancelled',()=>new Promise(()=>{}));" : `import {suite,test} from 'node:test'; import {appendFileSync,writeFileSync} from 'node:fs'; import assert from 'node:assert/strict'; suite('integration suite',()=>{test${mode==='skip'?'.skip':mode==='todo'?'.todo':''}('integration',()=>{appendFileSync('.treeseed/order','integration\\n');${mode==='mutation'?"writeFileSync('hidden.ts','mutated');":''}assert.equal(${mode==='failure'},false,'private fixture error');});});`);
+	writeFileSync(resolve(root,'tests/integration.test.ts'),mode==='crash' ? "throw new Error('private fixture error');" : mode==='cancelled' ? "import test from 'node:test'; const controller=new AbortController(); test('cancelled',{signal:controller.signal},()=>new Promise(()=>{}));setTimeout(()=>controller.abort(),25);" : mode==='expired' ? "import test from 'node:test';test('cancelled',{timeout:25},()=>new Promise(()=>{}));" : `import {suite,test} from 'node:test'; import {appendFileSync,writeFileSync} from 'node:fs'; import assert from 'node:assert/strict'; suite('integration suite',()=>{test${mode==='skip'?'.skip':mode==='todo'?'.todo':''}('integration',()=>{appendFileSync('.treeseed/order','integration\\n');${mode==='mutation'?"writeFileSync('hidden.ts','mutated');":''}assert.equal(${mode==='failure'},false,'private fixture error');});});`);
 	if(mode==='empty'){rmSync(resolve(root,'tests/unit.test.ts'));rmSync(resolve(root,'tests/integration.test.ts'));writeFileSync(resolve(root,'runner.ts'),"process.exit(0);");}
 	if(mode==='missing')writeFileSync(resolve(root,'runner.ts'),"process.exit(0);");
 	if(mode==='malformed'||mode==='duplicate')writeFileSync(resolve(root,'runner.ts'),`import {writeFileSync} from 'node:fs';const destination=process.argv.find(arg=>arg.startsWith('--test-reporter-destination='))?.split('=').slice(1).join('=');writeFileSync(destination,${JSON.stringify(mode==='malformed'?'invalid':'{}{}')});`);
@@ -33,7 +33,8 @@ function fixture(mode='pass') {
 function invoke(root:string,id:string,source=false) {
 	const runtime=resolve(root,'.treeseed/runtime');mkdirSync(runtime,{recursive:true});
 	for(const name of ['command.js','node-case.js'])copyFileSync(resolve(repository,'dist/verifiers/guarantees',name),resolve(runtime,name));
-	const result=spawnSync(process.execPath,[...(source ? ['--import',resolve(repository,'node_modules/tsx/dist/loader.mjs'),resolve(repository,'src/verifiers/guarantees/command.ts')] : [resolve(runtime,'command.js')]),'--workspace',root,'--environment','local','--ids','native','--run-id',id],{encoding:'utf8'});
+	const result=spawnSync(process.execPath,[...(source ? ['--import',resolve(repository,'node_modules/tsx/dist/loader.mjs'),resolve(repository,'src/verifiers/guarantees/command.ts')] : [resolve(runtime,'command.js')]),'--workspace',root,'--environment','local','--ids','native','--run-id',id],{encoding:'utf8',timeout:10_000});
+	expect(result.error,'fixture subprocess must close with native terminal evidence, not hang').toBeUndefined();
 	const report=JSON.parse(result.stdout);
 	return {report,status:result.status,receipt:JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs',id,report.results[0].evidence.at(-1)),'utf8'))};
 }
@@ -75,6 +76,15 @@ it('blocks changed native reporter artifact custody even when all source tests p
 	const root=fixture('reporter-mutation');const {report,receipt}=invoke(root,'reporter-mutation');
 	expect(report.ok).toBe(false);expect(receipt).toMatchObject({passed:false,exitCode:0,checks:{total:2,passed:2}});
 	expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
+});
+
+it('blocks explicit native abort and deadline expiry with complete terminal evidence before scenes',()=>{
+	for(const mode of ['cancelled','expired']) {
+		const root=fixture(mode);const {report,status,receipt}=invoke(root,`terminal-${mode}`);
+		expect(status).toBe(1);expect(report.ok).toBe(false);
+		expect(receipt).toMatchObject({passed:false,exitCode:1,signal:null,checks:{total:2,passed:1,failures:[{title:'cancelled',status:'failed'}]}});
+		expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
+	}
 });
 
 it('blocks a zero-exit native suite that changes the exact source candidate',()=>{

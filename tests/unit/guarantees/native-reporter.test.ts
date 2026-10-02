@@ -47,3 +47,13 @@ it('blocks failed skipped and todo suite containers even when an aggregate claim
 		{type:'test:pass',data:{todo:true,details:{type:'suite'}}},
 	])expect(fullSuitePassed(await report([terminal(),event,summary()]))).toBe(false);
 });
+
+it('rejects aborted and expired native terminals under either supported Node failure classification',async()=>{
+	for(const [failed,cancelled] of [[0,1],[1,0]]) {
+		const value=await report([{type:'test:fail',data:{name:'interrupted',details:{type:'test',duration_ms:25,error:{code:'ERR_TEST_FAILURE',message:'private interruption'}}}},
+			{type:'test:summary',data:{success:false,counts:{tests:1,passed:0,failed,cancelled,skipped:0,todo:0}}}]);
+		expect(fullSuitePassed(value)).toBe(false);
+		expect(value.testResults[0].assertionResults).toEqual([{title:'interrupted',status:'failed',duration:25}]);
+		expect(JSON.stringify(value)).not.toContain('private interruption');
+	}
+});

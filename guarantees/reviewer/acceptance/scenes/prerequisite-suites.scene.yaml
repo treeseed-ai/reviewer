@@ -2,6 +2,12 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: native-interruption
+    action: {verifier: reviewer.prerequisites.native-interruption}
+    expect: {status: passed}
+  - id: native-interruption-events
+    action: {verifier: reviewer.prerequisites.native-interruption-events}
+    expect: {status: passed}
   - id: native-complete
     action: {verifier: reviewer.prerequisites.native-complete}
     expect: {status: passed}
