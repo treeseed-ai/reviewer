@@ -1,6 +1,16 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.failure-criterion:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: retains only controlled prerequisite failure criteria without copying stack or assertion prose
+  reviewer.prerequisites.failure-stage:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains a real full-suite controlled failure stage without copying native failure prose
   reviewer.prerequisites.exunit-declaration:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"

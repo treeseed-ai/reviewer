@@ -2,6 +2,12 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: failure-criterion
+    action: {verifier: reviewer.prerequisites.failure-criterion}
+    expect: {status: passed}
+  - id: failure-stage
+    action: {verifier: reviewer.prerequisites.failure-stage}
+    expect: {status: passed}
   - id: exunit-declaration
     action: {verifier: reviewer.prerequisites.exunit-declaration}
     expect: {status: passed}

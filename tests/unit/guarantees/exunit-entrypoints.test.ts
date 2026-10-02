@@ -2,7 +2,7 @@ import {afterEach,expect,it} from 'vitest';
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
-import {ownerTestCommand} from '../../../src/verifiers/guarantees/prerequisites.ts';
+import {ownerTestCommand,fullSuiteFailures} from '../../../src/verifiers/guarantees/prerequisites.ts';
 
 const roots:string[]=[];
 afterEach(()=>{for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true});});
@@ -27,4 +27,17 @@ it('rejects missing malformed filtered and shell native declarations without bor
 	writeFileSync(resolve(root,'treeseed.package.yaml'),'verify: {local: verify.exs}\n');
 	writeFileSync(resolve(root,'package.json'),JSON.stringify({scripts:{}}));
 	expect(()=>ownerTestCommand(root)).toThrow();
+});
+
+it('retains only controlled prerequisite failure criteria without copying stack or assertion prose',()=>{
+	const evidence={testResults:[{assertionResults:[
+		{title:'boundary',status:'failed',failureMessages:['AssertionError: ACCEPTANCE_PREREQUISITE_GIT_INIT: private native error\nprivate stack']},
+		{title:'other',status:'failed',failureMessages:['Error: private native error']},
+		{title:'passed',status:'passed',failureMessages:['Error: private native error']}
+	]}]};
+	expect(fullSuiteFailures(evidence)).toEqual([
+		{title:'boundary',status:'failed',criterion:'ACCEPTANCE_PREREQUISITE_GIT_INIT'},
+		{title:'other',status:'failed'}
+	]);
+	expect(JSON.stringify(fullSuiteFailures(evidence))).not.toContain('private');
 });

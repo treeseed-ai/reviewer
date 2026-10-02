@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { parse } from 'yaml';
 import type { LocalGuaranteePlan } from './command.ts';
+import { failureCriterion } from './safe-cli-failure.ts';
 
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
@@ -59,6 +60,18 @@ export function fullSuitePassed(value: unknown): boolean {
 		return assertion.status === 'passed' && typeof assertion.title === 'string' && assertion.title.length > 0
 			&& typeof assertion.duration === 'number' && Number.isFinite(assertion.duration) && assertion.duration >= 0;
 	});
+}
+
+export function fullSuiteFailures(value: unknown) {
+	const files=row(value).testResults;
+	return Array.isArray(files) ? files.flatMap(file=>{
+		const assertions=row(file).assertionResults;
+		return Array.isArray(assertions) ? assertions.filter(value=>row(value).status!=='passed').map(value=>{
+			const assertion=row(value), messages=assertion.failureMessages;
+			const criterion=Array.isArray(messages)&&typeof messages[0]==='string'?failureCriterion(messages[0]):undefined;
+			return {title:assertion.title,status:assertion.status,...(criterion?{criterion}:{})};
+		}) : [];
+	}) : [];
 }
 
 export function candidate(root: string) {
@@ -197,11 +210,7 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 			}
 			checks = { total: report.numTotalTests, passed: report.numPassedTests, failed: report.numFailedTests,
 				skipped: report.numPendingTests, todo: report.numTodoTests,
-				failures: Array.isArray(report.testResults) ? report.testResults.flatMap((file: unknown) => {
-					const assertions = row(file).assertionResults;
-					return Array.isArray(assertions) ? assertions.filter(value=>row(value).status !== 'passed')
-						.map(value=>({title:row(value).title,status:row(value).status})) : [];
-				}) : [] };
+				failures: fullSuiteFailures(report) };
 			const after = candidate(root);
 			passed = status === 0 && !result.error && fullSuitePassed(report) && after.commit === custody.commit && after.sourceDigest === custody.sourceDigest
 				&& (!reporter || createHash('sha256').update(readFileSync(reporter)).digest('hex') === reporterDigest);
