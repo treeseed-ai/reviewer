@@ -1,6 +1,66 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.complete:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: accepts only complete observed full-suite evidence without skipped pending or failed boundaries
+  reviewer.prerequisites.malformed:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects malformed skipped failed absent and unmeasured assertion evidence
+  reviewer.prerequisites.entrypoint:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: resolves the declared complete test entrypoint without filters and rejects cyclic missing or hooked delegation
+  reviewer.prerequisites.order:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: runs every owning unit and integration assertion before any scene and repeats suites for a fresh invocation
+  reviewer.prerequisites.failed:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks native scene side effects when an unselected unit test fails
+  reviewer.prerequisites.skipped:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks acceptance when the complete integration suite contains a skipped assertion
+  reviewer.prerequisites.missing:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: does not execute prerequisites while planning and rejects a missing full test entrypoint before scenes
+  reviewer.prerequisites.empty:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects empty suites and filtered test entrypoints before native scene execution
+  reviewer.prerequisites.mutation:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects a candidate mutation performed by a passing full suite and retains exact prerequisite custody
+  reviewer.prerequisites.deduplicate:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: deduplicates prerequisite suites across dependent guarantees only within the same invocation
+  reviewer.prerequisites.owners:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks every scene when a different participating owner has failing prerequisites
+  reviewer.prerequisites.custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects an escaped test config and missing Git custody without scene side effects
   reviewer.workplan.package-local:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"

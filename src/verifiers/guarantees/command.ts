@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { parse } from 'yaml';
 import { acceptanceCriteria, acceptanceCoverage, type AcceptanceBinding } from './acceptance-spec.ts';
+import { runPrerequisites, ownerTestCommand } from './prerequisites.ts';
 import type { GuaranteeDiagnostic, GuaranteePlanEntry, GuaranteePlanReport, GuaranteeRunReport, GuaranteeRunStep, GuaranteeRunStatus, GuaranteeVerifierDefinition } from '@treeseed/sdk/guarantees';
 
 type Row = Record<string, unknown>;
@@ -153,7 +154,9 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	const scope = plan.entries[0]?.scope ?? 'local-component-tests';
 	const checks = new Map<string, { status: 'passed' | 'failed' | 'blocked'; evidence: string[]; diagnostics: GuaranteeDiagnostic[] }>();
 	const blockedGuarantees = new Set<string>(), passedGuarantees = new Set<string>();
-	if (plan.ok) for (const entry of plan.entries) {
+	const prerequisites = plan.ok ? runPrerequisites(plan, output) : { receipts: [], diagnostics: [] };
+	const prerequisiteDiagnostics = prerequisites.diagnostics.map(diagnostic);
+	if (plan.ok && !prerequisiteDiagnostics.length) for (const entry of plan.entries) {
 		const dependencies = entry.manifest.dependencies as { guarantees?: string[] } | undefined;
 		if (dependencies?.guarantees?.some(id => !passedGuarantees.has(id))) { blockedGuarantees.add(entry.id); continue; }
 		let failedSceneStep = false;
@@ -168,13 +171,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 		const { testFile, testName } = binding.definition;
 		const reportPath = resolve(output, 'evidence', `${createHash('sha256').update(ref).digest('hex')}.json`);
 		const sourceDigest = createHash('sha256').update(readFileSync(inside(binding.root, testFile))).digest('hex');
-		const packageJson = JSON.parse(readFileSync(resolve(binding.root, 'package.json'), 'utf8')) as { scripts?: Record<string, string> };
-		let testCommand = packageJson.scripts?.test ?? '';
-		for (let depth = 0; depth < 4; depth += 1) {
-			const delegated = /^npm run ([\w:-]+)$/.exec(testCommand);
-			if (!delegated) break;
-			testCommand = packageJson.scripts?.[delegated[1]!] ?? '';
-		}
+		const testCommand = ownerTestCommand(binding.root);
 		const config = /--config\s+(\S+)/.exec(testCommand)?.[1];
 		const args = binding.definition.kind === 'vitestCase'
 			? [inside(binding.root, 'node_modules/vitest/vitest.mjs'), 'run', ...(config ? ['--config', inside(binding.root, config)] : []), testFile,
@@ -206,14 +203,14 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	const results = plan.entries.map(entry => {
 		const steps: GuaranteeRunStep[] = entry.verifierRefs.map(id => ({ id, ref: id, kind: entry.sceneVerifierRefs?.includes(id) ? 'scene' : 'verifier', ...(blockedGuarantees.has(entry.id)
 			? { status: 'blocked' as const, evidence: [], diagnostics: [diagnostic('A prerequisite guarantee did not pass.')] }
-			: checks.get(id) ?? { status: 'blocked', evidence: [], diagnostics: plan.diagnostics }) }));
+			: checks.get(id) ?? { status: 'blocked', evidence: [], diagnostics: [...plan.diagnostics, ...prerequisiteDiagnostics] }) }));
 		const status: GuaranteeRunStatus = steps.some(s => s.status === 'failed') ? 'failed' : steps.length && steps.every(s => s.status === 'passed') ? 'passed' : 'blocked';
-		return { ...entry, status, steps, evidence: steps.flatMap(s => s.evidence ?? []), diagnostics: steps.flatMap(s => s.diagnostics ?? []) };
+		return { ...entry, status, steps, evidence: [...steps.flatMap(s => s.evidence ?? []), ...prerequisites.receipts], diagnostics: steps.flatMap(s => s.diagnostics ?? []) };
 	});
 	const counts = { passed: results.filter(r => r.status === 'passed').length, failed: results.filter(r => r.status === 'failed').length,
 		blocked: results.filter(r => r.status === 'blocked').length, skipped: 0, releaseBlockingFailures: 0 };
 	const report: GuaranteeRunReport = { schemaVersion: 'treeseed.guarantee-run/v1', runId, environment: 'local', scope, startedAt, completedAt: new Date().toISOString(),
-		ok: plan.ok && results.length > 0 && counts.passed === results.length, filter: {}, counts, results, diagnostics: plan.diagnostics };
+		ok: plan.ok && results.length > 0 && counts.passed === results.length, filter: {}, counts, results, diagnostics: [...plan.diagnostics, ...prerequisiteDiagnostics] };
 	writeFileSync(resolve(output, 'plan.json'), JSON.stringify(plan, null, 2));
 	writeFileSync(resolve(output, 'report.json'), JSON.stringify(report, null, 2));
 	return report;

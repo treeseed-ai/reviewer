@@ -28,6 +28,16 @@ jobs:
           node -e "import('@treeseed/sdk/operator-contracts')"
           node -e "const value=require('./node_modules/@treeseed/ui/package.json').version; if(!value) process.exit(1)"
       - run: npm run verify
+      - name: Verify complete-suite acceptance prerequisites
+        run: node dist/verifiers/guarantees/command.js --workspace . --ids guarantee.reviewer.acceptance.prerequisites --run-id reviewer-prerequisites-${{ github.run_id }}-${{ github.run_attempt }} --environment local
+      - name: Upload acceptance prerequisite evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewer-prerequisites-${{ github.sha }}
+          path: .treeseed/guarantees/runs/reviewer-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 30
       - name: Pack verified artifact
         run: mkdir -p artifacts && npm pack --json --ignore-scripts --pack-destination artifacts
       - name: Seal protected staging candidate
