@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -60,6 +60,53 @@ it('compares both exact HEAD and source bytes without disclosing source contents
 it('rejects missing candidate custody without throwing or substituting an old receipt', () => {
 	const root = mkdtempSync(resolve(tmpdir(),'prerequisite-no-git-')); roots.push(root);
 	expect(custodyDiagnostics(new Map([[root,{commit:'0'.repeat(40),sourceDigest:'0'.repeat(64)}]]))).toHaveLength(1);
+});
+
+function sourceFixture() {
+	const root=mkdtempSync(resolve(tmpdir(),'prerequisite-source-metadata-'));roots.push(root);
+	for(const name of ['first.ts','second.ts'])writeFileSync(resolve(root,name),'same private bytes');
+	for(const args of [['init','-q'],['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Metadata source']])
+		expect(spawnSync('git',args,{cwd:root}).status).toBe(0);
+	return root;
+}
+
+it('binds executable modes for tracked and untracked files even when Git ignores file modes',()=>{
+	for(const name of ['first.ts','untracked.ts']) {
+		const root=sourceFixture(),path=resolve(root,name);writeFileSync(path,'same private bytes');chmodSync(path,0o644);
+		expect(spawnSync('git',['config','core.filemode','false'],{cwd:root}).status).toBe(0);
+		const captured=candidate(root);chmodSync(path,0o755);
+		expect(candidate(root).commit).toBe(captured.commit);
+		expect(candidate(root).sourceDigest).not.toBe(captured.sourceDigest);
+		expect(custodyDiagnostics(new Map([[root,captured]]))).toHaveLength(1);
+	}
+});
+
+it('binds readable access permissions and special mode bits without relying on Git executable state',()=>{
+	const root=sourceFixture(),path=resolve(root,'first.ts');chmodSync(path,0o644);const captured=candidate(root);
+	for(const mode of [0o600,0o666,0o4644]) {
+		chmodSync(path,mode);expect(candidate(root).sourceDigest,mode.toString(8)).not.toBe(captured.sourceDigest);
+		expect(custodyDiagnostics(new Map([[root,captured]]))).toHaveLength(1);
+	}
+});
+
+it('binds symlink identity and file kind even when both targets have identical readable bytes',()=>{
+	const root=sourceFixture(),link=resolve(root,'linked.ts');symlinkSync('first.ts',link);
+	const captured=candidate(root);rmSync(link);symlinkSync('second.ts',link);
+	expect(candidate(root).sourceDigest).not.toBe(captured.sourceDigest);
+	const moved=candidate(root);rmSync(link);writeFileSync(link,'same private bytes');
+	expect(candidate(root).sourceDigest).not.toBe(moved.sourceDigest);
+});
+
+it('rejects escaped broken cyclic directory and unreadable source instead of claiming byte custody',()=>{
+	for(const mode of ['escaped','broken','cycle','directory','unreadable']) {
+		const root=sourceFixture(),path=resolve(root,mode==='directory'?'first.ts':'unsafe.ts');
+		if(mode==='escaped')symlinkSync(resolve(sourceFixture(),'first.ts'),path);
+		else if(mode==='broken')symlinkSync('absent.ts',path);
+		else if(mode==='cycle')symlinkSync('unsafe.ts',path);
+		else if(mode==='directory'){rmSync(path);mkdirSync(path);}
+		else {writeFileSync(path,'private bytes');chmodSync(path,0o000);}
+		expect(()=>candidate(root),mode).toThrow();
+	}
 });
 
 it('rejects inherited parent Git custody instead of attributing a copied owner to its parent',()=>{

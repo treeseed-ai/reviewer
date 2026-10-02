@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { appendFileSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -323,4 +323,37 @@ it('admits complete native suites and scenes for independently rooted linked wor
 	const order=readFileSync(resolve(root,'.treeseed/order'),'utf8').trim().split('\n');
 	expect(order).toHaveLength(6);
 	for(const start of [0,3]){expect(order.slice(start,start+2).sort()).toEqual(['integration','unit']);expect(order[start+2]).toBe('scene');}
+});
+
+it('blocks a zero-exit complete suite that changes executable source mode without changing bytes',()=>{
+	const root=fixture();writeFileSync(resolve(root,'candidate.ts'),'same bytes');chmodSync(resolve(root,'candidate.ts'),0o644);
+	appendFileSync(resolve(root,'tests/unit.test.ts'),"\nimport {chmodSync} from 'node:fs';it('mode mutation',()=>{chmodSync('candidate.ts',0o755);});");
+	const report=runLocalGuarantees(root,planLocalGuarantees(root,['proof']),'source-mode-change');
+	expect(report.ok).toBe(false);expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
+	const receipt=JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/source-mode-change',report.results[0]!.evidence[0]!),'utf8'));
+	expect(receipt).toMatchObject({passed:false,exitCode:0,checks:{total:3,passed:3,failed:0}});
+});
+
+it('rejects native scene symlink retargeting between equal-byte sources before the next scene',()=>{
+	const root=fixture();for(const name of ['first.ts','second.ts'])writeFileSync(resolve(root,name),'same bytes');symlinkSync('first.ts',resolve(root,'linked.ts'));
+	writeFileSync(resolve(root,'scene.ts'),"import test from 'node:test';import {rmSync,symlinkSync,writeFileSync} from 'node:fs';test('scene boundary',()=>{rmSync('linked.ts');symlinkSync('second.ts','linked.ts');});test('next boundary',()=>{writeFileSync('.treeseed/next','ran');});");
+	const plan=planLocalGuarantees(root,['proof']),binding=plan.verifiers['proof.scene']!;
+	if(binding.definition.kind!=='nodeTestCase')throw new Error('Fixture must bind a native Node case.');
+	plan.verifiers['next.scene']={...binding,definition:{...binding.definition,testName:'next boundary'}};plan.entries[0]!.verifierRefs.push('next.scene');
+	const report=runLocalGuarantees(root,plan,'source-link-change');
+	expect(report.ok).toBe(false);expect(report.results[0]!.steps.map(step=>step.status)).toEqual(['failed','blocked']);
+	expect(existsSync(resolve(root,'.treeseed/next'))).toBe(false);
+	const receipt=JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/source-link-change',report.results[0]!.evidence.at(-1)!),'utf8'));
+	expect(receipt).toMatchObject({passed:true,checks:{total:2,passed:2,failed:0}});
+});
+
+for(const mode of ['escaped','fifo']) it(`rejects ${mode} source in a bounded native process before any full-suite side effect`,()=>{
+		const root=fixture(),path=resolve(root,'unsafe.ts');
+		if(mode==='escaped'){const outside=fixture();writeFileSync(resolve(outside,'source.ts'),'private outside bytes');symlinkSync(resolve(outside,'source.ts'),path);}
+		else {writeFileSync(path,'tracked regular source');expect(spawnSync('git',['add','unsafe.ts'],{cwd:root}).status).toBe(0);rmSync(path);expect(spawnSync('mkfifo',[path]).status).toBe(0);}
+		const command=resolve(import.meta.dirname,'../../src/verifiers/guarantees/command.ts');
+		const code=`import{planLocalGuarantees,runLocalGuarantees}from ${JSON.stringify(command)};const report=runLocalGuarantees(${JSON.stringify(root)},planLocalGuarantees(${JSON.stringify(root)},['proof']),'unsafe-source');if(report.ok)process.exit(1);`;
+		const result=spawnSync(process.execPath,['--import',resolve(import.meta.dirname,'../../node_modules/tsx/dist/loader.mjs'),'--input-type=module','-e',code],{cwd:root,encoding:'utf8',timeout:5000});
+		expect(result.error,mode).toBeUndefined();expect(result.status,mode).toBe(0);
+		expect(existsSync(resolve(root,'.treeseed/order')),mode).toBe(false);
 });

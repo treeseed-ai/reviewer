@@ -2,6 +2,30 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: source-permissions
+    action: {verifier: reviewer.prerequisites.source-permissions}
+    expect: {status: passed}
+  - id: source-mode
+    action: {verifier: reviewer.prerequisites.source-mode}
+    expect: {status: passed}
+  - id: source-link
+    action: {verifier: reviewer.prerequisites.source-link}
+    expect: {status: passed}
+  - id: source-unsafe
+    action: {verifier: reviewer.prerequisites.source-unsafe}
+    expect: {status: passed}
+  - id: suite-mode
+    action: {verifier: reviewer.prerequisites.suite-mode}
+    expect: {status: passed}
+  - id: scene-link
+    action: {verifier: reviewer.prerequisites.scene-link}
+    expect: {status: passed}
+  - id: source-escaped
+    action: {verifier: reviewer.prerequisites.source-escaped}
+    expect: {status: passed}
+  - id: source-fifo
+    action: {verifier: reviewer.prerequisites.source-fifo}
+    expect: {status: passed}
   - id: failure-criterion
     action: {verifier: reviewer.prerequisites.failure-criterion}
     expect: {status: passed}
