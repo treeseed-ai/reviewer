@@ -2,6 +2,27 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: exunit-declaration
+    action: {verifier: reviewer.prerequisites.exunit-declaration}
+    expect: {status: passed}
+  - id: exunit-declaration-denial
+    action: {verifier: reviewer.prerequisites.exunit-declaration-denial}
+    expect: {status: passed}
+  - id: exunit-complete
+    action: {verifier: reviewer.prerequisites.exunit-complete}
+    expect: {status: passed}
+  - id: exunit-assertion-denial
+    action: {verifier: reviewer.prerequisites.exunit-assertion-denial}
+    expect: {status: passed}
+  - id: exunit-evidence-denial
+    action: {verifier: reviewer.prerequisites.exunit-evidence-denial}
+    expect: {status: passed}
+  - id: exunit-custody
+    action: {verifier: reviewer.prerequisites.exunit-custody}
+    expect: {status: passed}
+  - id: exunit-entrypoint-denial
+    action: {verifier: reviewer.prerequisites.exunit-entrypoint-denial}
+    expect: {status: passed}
   - id: native-owner-closure
     action: {verifier: reviewer.prerequisites.native-owner-closure}
     expect: {status: passed}
