@@ -23,6 +23,11 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install native assertion integration toolchain
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.3.4.18"
+          elixir-version: "1.17.3"
       - name: Verify released dependency custody
         run: |
           node -e "import('@treeseed/sdk/operator-contracts')"

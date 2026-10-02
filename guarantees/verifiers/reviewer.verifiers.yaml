@@ -1,6 +1,51 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.failure-criterion:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: retains only controlled prerequisite failure criteria without copying stack or assertion prose
+  reviewer.prerequisites.failure-stage:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains a real full-suite controlled failure stage without copying native failure prose
+  reviewer.prerequisites.exunit-declaration:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: resolves one complete native Elixir entrypoint from the existing owner verification declaration
+  reviewer.prerequisites.exunit-declaration-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: rejects missing malformed filtered and shell native declarations without borrowing an npm identity
+  reviewer.prerequisites.exunit-complete:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: admits declared complete ExUnit assertions once before scenes and reruns them only for a new invocation
+  reviewer.prerequisites.exunit-assertion-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: blocks real ExUnit failed skipped and excluded assertions even when skipped frameworks exit zero
+  reviewer.prerequisites.exunit-evidence-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: blocks empty missing truncated and mixed ExUnit evidence instead of accepting a process exit code
+  reviewer.prerequisites.exunit-custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: rejects a zero-exit ExUnit suite that mutates its exact candidate after all assertions pass
+  reviewer.prerequisites.exunit-entrypoint-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: preflights declared ExUnit filters hooks missing and escaped scripts before any native execution
   reviewer.prerequisites.native-owner-closure:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"

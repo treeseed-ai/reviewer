@@ -21,7 +21,8 @@ function fixture(failing = false, skipped = false) {
 	writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), 'id: proof\napi: {verifierRefs: [proof.scene]}\n');
 	writeFileSync(resolve(root, 'guarantees/proof.verifiers.yaml'), 'verifiers:\n  proof.scene: {kind: nodeTestCase, ownerPackage: fixture, testFile: scene.ts, testName: scene boundary}\n');
 	for (const args of [['init', '-q'], ['add', '.'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'Exact test candidate']]) {
-		expect(spawnSync('git', args, { cwd: root }).status).toBe(0);
+		const stage=args.includes('commit')?'COMMIT':args[0]!.toUpperCase();
+		expect(spawnSync('git', args, { cwd: root }).status,`ACCEPTANCE_PREREQUISITE_GIT_${stage}: exact fixture Git stage`).toBe(0);
 	}
 	return root;
 }
@@ -105,9 +106,21 @@ it('rejects an escaped test config and missing Git custody without scene side ef
 		if (mode === 'missing-git') rmSync(resolve(root,'.git'),{recursive:true,force:true});
 		else { const other = fixture(); symlinkSync(resolve(other,'vitest.config.ts'),resolve(root,'outside.config.ts'));
 			writeFileSync(resolve(root,'package.json'),JSON.stringify({scripts:{test:'vitest run --config outside.config.ts'}})); }
-		expect(runLocalGuarantees(root,planLocalGuarantees(root,['proof']),mode).ok).toBe(false);
-		expect(existsSync(resolve(root,'.treeseed/order'))).toBe(false);
+		const stage=mode==='escaped'?'ESCAPED':'MISSING_GIT';
+		expect(runLocalGuarantees(root,planLocalGuarantees(root,['proof']),mode).ok,`ACCEPTANCE_PREREQUISITE_${stage}_DISPOSITION: custody must fail closed`).toBe(false);
+		expect(existsSync(resolve(root,'.treeseed/order')),`ACCEPTANCE_PREREQUISITE_${stage}_SIDE_EFFECT: no suite side effect`).toBe(false);
 	}
+});
+
+it('retains a real full-suite controlled failure stage without copying native failure prose',()=>{
+	const root=fixture();
+	appendFileSync(resolve(root,'tests/unit.test.ts'),"\nit('controlled failure',()=>{throw new Error('ACCEPTANCE_PREREQUISITE_FIXTURE: private native error');});\n");
+	const report=runLocalGuarantees(root,planLocalGuarantees(root,['proof']),'controlled-failure');
+	expect(report.ok).toBe(false);
+	const receipt=JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/controlled-failure',report.results[0]!.evidence[0]!),'utf8'));
+	expect(receipt.checks.failures).toEqual([{title:'controlled failure',status:'failed',criterion:'ACCEPTANCE_PREREQUISITE_FIXTURE'}]);
+	expect(JSON.stringify(receipt)).not.toContain('private native error');
+	expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
 });
 
 it('blocks all scenes when a later owner suite changes an earlier tested candidate', () => {

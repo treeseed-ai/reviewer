@@ -2,7 +2,7 @@ import { run } from 'node:test';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { safeCliFailure } from './safe-cli-failure.ts';
+import { failureCriterion, safeCliFailure } from './safe-cli-failure.ts';
 
 // Normalize Node's named terminal events, never test stdout or secret payloads.
 type Row = Record<string, unknown>;
@@ -43,7 +43,7 @@ for await (const event of run({ files: [file], testNamePatterns: [pattern], exec
 		const error = event.type === 'test:fail' ? event.data.details.error : undefined;
 		const cause = error?.cause as Error | undefined;
 		const message = String(cause?.message ?? error?.message ?? '');
-		const criterion = /^ACCEPTANCE_[A-Z0-9_]+(?=:)/u.exec(message)?.[0];
+		const criterion = failureCriterion(message);
 		const cliFailure = safeCliFailure(message);
 		// Retain source location and error classification, never assertion values,
 		// raw CLI payloads, stack dumps, stdout or credential-bearing messages.

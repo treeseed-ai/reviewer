@@ -7,11 +7,18 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { parse } from 'yaml';
 import type { LocalGuaranteePlan } from './command.ts';
+import { failureCriterion } from './safe-cli-failure.ts';
 
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 
 export function ownerTestCommand(root: string): string {
+	if (!existsSync(resolve(root,'package.json'))) {
+		const declared = row(row(parse(readFileSync(resolve(root,'treeseed.package.yaml'),'utf8'))).verify).local;
+		if (typeof declared !== 'string' || !/^[\w.][\w./-]*\.exs$/u.test(declared))
+			throw new Error('Full native prerequisite reporting requires one declared Elixir verification entrypoint.');
+		return `elixir ${declared}`;
+	}
 	const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as { scripts?: Record<string, string> };
 	const scripts = manifest.scripts ?? {}, visited = new Set<string>();
 	let name = 'test';
@@ -30,13 +37,15 @@ function fullTestEntrypoint(root: string) {
 	const script=ownerTestCommand(root);
 	const vitest=/^vitest run(?: --config (\S+))?$/u.exec(script);
 	const native=/^(?:npm run [\w:-]+ && )?node(?: --import tsx)? ([\w./-]+\.(?:ts|js|mjs))$/u.exec(script);
-	if(!vitest&&!native)throw new Error('Full prerequisite reporting requires an unfiltered declared entrypoint.');
-	const selected=vitest?.[1]??native?.[1];
+	const elixir=!existsSync(resolve(root,'package.json')) ? /^elixir ([\w./-]+\.exs)$/u.exec(script) : null;
+	if(!vitest&&!native&&!elixir)throw new Error('Full prerequisite reporting requires an unfiltered declared entrypoint.');
+	const selected=vitest?.[1]??native?.[1]??elixir?.[1];
 	const path=selected?realpathSync(resolve(root,selected)):null;
 	const local=path?relative(root,path):'';
 	if(local==='..'||local.startsWith(`..${sep}`)||local.startsWith(sep))
 		throw new Error('Full prerequisite entrypoint escapes its owner.');
-	return {config:vitest?path:null,native:Boolean(native)};
+	if(path)readFileSync(path); // A directory or unreadable entrypoint is not an executable suite.
+	return {config:vitest?path:null,native:Boolean(native),elixir:elixir?path:null};
 }
 
 export function fullSuitePassed(value: unknown): boolean {
@@ -51,6 +60,18 @@ export function fullSuitePassed(value: unknown): boolean {
 		return assertion.status === 'passed' && typeof assertion.title === 'string' && assertion.title.length > 0
 			&& typeof assertion.duration === 'number' && Number.isFinite(assertion.duration) && assertion.duration >= 0;
 	});
+}
+
+export function fullSuiteFailures(value: unknown) {
+	const files=row(value).testResults;
+	return Array.isArray(files) ? files.flatMap(file=>{
+		const assertions=row(file).assertionResults;
+		return Array.isArray(assertions) ? assertions.filter(value=>row(value).status!=='passed').map(value=>{
+			const assertion=row(value), messages=assertion.failureMessages;
+			const criterion=Array.isArray(messages)&&typeof messages[0]==='string'?failureCriterion(messages[0]):undefined;
+			return {title:assertion.title,status:assertion.status,...(criterion?{criterion}:{})};
+		}) : [];
+	}) : [];
 }
 
 export function candidate(root: string) {
@@ -157,9 +178,16 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 		try {
 			custody = candidate(root);
 			if(!admitted)throw new Error('A participating full-suite entrypoint is unavailable.');
-			const {config,native}=entrypoints.get(root)!;
+			const {config,native,elixir}=entrypoints.get(root)!;
 			let result, report;
-			if (!native) {
+			if (elixir) {
+				// The owner's original whole-suite command emits the existing assertion report.
+				// Never infer assertions from exit zero or recover JSON from mixed stdout.
+				command = ['elixir',elixir];
+				result = spawnSync(command[0]!,command.slice(1),{cwd:root,encoding:'utf8',timeout:1_200_000,maxBuffer:32*1024*1024});
+				status = result.status; signal = result.signal;
+				report = JSON.parse(result.stdout);
+			} else if (!native) {
 				command = [process.execPath,realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', ...(config ? ['--config', config] : []), '--reporter=json'];
 				result = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 1_200_000, maxBuffer: 32 * 1024 * 1024 });
 				status = result.status; signal = result.signal;
@@ -182,11 +210,7 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 			}
 			checks = { total: report.numTotalTests, passed: report.numPassedTests, failed: report.numFailedTests,
 				skipped: report.numPendingTests, todo: report.numTodoTests,
-				failures: Array.isArray(report.testResults) ? report.testResults.flatMap((file: unknown) => {
-					const assertions = row(file).assertionResults;
-					return Array.isArray(assertions) ? assertions.filter(value=>row(value).status !== 'passed')
-						.map(value=>({title:row(value).title,status:row(value).status})) : [];
-				}) : [] };
+				failures: fullSuiteFailures(report) };
 			const after = candidate(root);
 			passed = status === 0 && !result.error && fullSuitePassed(report) && after.commit === custody.commit && after.sourceDigest === custody.sourceDigest
 				&& (!reporter || createHash('sha256').update(readFileSync(reporter)).digest('hex') === reporterDigest);
