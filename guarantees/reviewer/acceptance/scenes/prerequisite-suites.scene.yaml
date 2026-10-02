@@ -2,6 +2,21 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: exact-candidate
+    action: {verifier: reviewer.prerequisites.exact-candidate}
+    expect: {status: passed}
+  - id: lost-candidate
+    action: {verifier: reviewer.prerequisites.lost-candidate}
+    expect: {status: passed}
+  - id: cross-owner-change
+    action: {verifier: reviewer.prerequisites.cross-owner-change}
+    expect: {status: passed}
+  - id: scene-change
+    action: {verifier: reviewer.prerequisites.scene-change}
+    expect: {status: passed}
+  - id: final-custody
+    action: {verifier: reviewer.prerequisites.final-custody}
+    expect: {status: passed}
   - id: complete
     action: {verifier: reviewer.prerequisites.complete}
     expect: {status: passed}

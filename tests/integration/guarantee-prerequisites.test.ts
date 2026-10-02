@@ -107,3 +107,44 @@ it('rejects an escaped test config and missing Git custody without scene side ef
 		expect(existsSync(resolve(root,'.treeseed/order'))).toBe(false);
 	}
 });
+
+it('blocks all scenes when a later owner suite changes an earlier tested candidate', () => {
+	for (const mode of ['tracked', 'untracked', 'head']) {
+		const first = fixture(), second = fixture();
+		const mutation = mode === 'head'
+			? `spawnSync('git',['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--allow-empty','-qm','Moved'],{cwd:${JSON.stringify(first)}});`
+			: `writeFileSync(${JSON.stringify(resolve(first, mode === 'tracked' ? 'tests/unit.test.ts' : 'hidden.ts'))},'changed');`;
+		appendFileSync(resolve(second, 'tests/unit.test.ts'), `\nimport {writeFileSync} from 'node:fs'; import {spawnSync} from 'node:child_process'; it('cross-owner mutation',()=>{${mutation}});`);
+		const plan = planLocalGuarantees(first, ['proof']);
+		plan.verifiers['other.scene'] = {...plan.verifiers['proof.scene']!,root:second};
+		plan.entries.push({...plan.entries[0]!,id:'other',verifierRefs:['other.scene']});
+		const report = runLocalGuarantees(first,plan,`cross-${mode}`);
+		expect(report.ok,mode).toBe(false); expect(report.counts.blocked).toBe(2);
+		for (const root of [first,second]) expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
+	}
+});
+
+it('rejects zero-exit scene candidate changes before another scene can execute', () => {
+	for (const mode of ['tracked', 'untracked', 'deleted']) {
+		const root = fixture();
+		const mutation = mode === 'deleted' ? "rmSync('tests/unit.test.ts');" : `writeFileSync('${mode === 'tracked' ? 'tests/unit.test.ts' : 'hidden.ts'}','changed');`;
+		writeFileSync(resolve(root,'scene.ts'), `import test from 'node:test'; import {writeFileSync,rmSync} from 'node:fs'; test('scene boundary',()=>{${mutation}}); test('next boundary',()=>{writeFileSync('.treeseed/next','ran');});`);
+		const plan = planLocalGuarantees(root,['proof']);
+		plan.verifiers['next.scene'] = {...plan.verifiers['proof.scene']!,definition:{...plan.verifiers['proof.scene']!.definition,testName:'next boundary'}};
+		plan.entries[0]!.verifierRefs.push('next.scene');
+		const report = runLocalGuarantees(root,plan,`scene-${mode}`);
+		expect(report.ok,mode).toBe(false);
+		expect(report.results[0]!.steps[0]!.status).toBe('failed');
+		expect(report.results[0]!.steps[1]!.status).toBe('blocked');
+		expect(existsSync(resolve(root,'.treeseed/next'))).toBe(false);
+	}
+});
+
+it('retains passed suite receipts but fails a final scene that destroys Git custody', () => {
+	const root = fixture();
+	writeFileSync(resolve(root,'scene.ts'), "import test from 'node:test'; import {rmSync} from 'node:fs'; test('scene boundary',()=>{rmSync('.git',{recursive:true,force:true});});");
+	const report = runLocalGuarantees(root,planLocalGuarantees(root,['proof']),'lost-custody');
+	expect(report.ok).toBe(false); expect(report.results[0]!.steps[0]!.status).toBe('failed');
+	const receipt = JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/lost-custody',report.results[0]!.evidence.at(-1)!), 'utf8'));
+	expect(receipt).toMatchObject({passed:true,checks:{total:2,passed:2,failed:0}});
+});

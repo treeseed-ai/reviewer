@@ -30,3 +30,7 @@ negativeCases:
     verifierRefs: [reviewer.prerequisites.owners]
   - id: escaped-or-missing-custody
     verifierRefs: [reviewer.prerequisites.custody]
+  - id: stale-cross-owner-candidate
+    verifierRefs: [reviewer.prerequisites.cross-owner-change]
+  - id: scene-invalidates-prerequisites
+    verifierRefs: [reviewer.prerequisites.scene-change, reviewer.prerequisites.final-custody]
