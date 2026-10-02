@@ -2,6 +2,27 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: own-root
+    action: {verifier: reviewer.prerequisites.own-root}
+    expect: {status: passed}
+  - id: readable-bytes
+    action: {verifier: reviewer.prerequisites.readable-bytes}
+    expect: {status: passed}
+  - id: linked-root
+    action: {verifier: reviewer.prerequisites.linked-root}
+    expect: {status: passed}
+  - id: nested-owner
+    action: {verifier: reviewer.prerequisites.nested-owner}
+    expect: {status: passed}
+  - id: deleted-bytes
+    action: {verifier: reviewer.prerequisites.deleted-bytes}
+    expect: {status: passed}
+  - id: inherited-head
+    action: {verifier: reviewer.prerequisites.inherited-head}
+    expect: {status: passed}
+  - id: linked-admission
+    action: {verifier: reviewer.prerequisites.linked-admission}
+    expect: {status: passed}
   - id: native-interruption
     action: {verifier: reviewer.prerequisites.native-interruption}
     expect: {status: passed}

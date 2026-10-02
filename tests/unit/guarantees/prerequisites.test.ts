@@ -34,9 +34,10 @@ it('resolves the declared complete test entrypoint without filters and rejects c
 	const save = (scripts: Record<string,string>) => writeFileSync(resolve(root,'package.json'),JSON.stringify({scripts}));
 	save({test:'npm run test:all','test:all':'vitest run --config vitest.config.ts'});
 	expect(ownerTestCommand(root)).toBe('vitest run --config vitest.config.ts');
-	for (const scripts of [{},{test:'npm run missing'},{test:'npm run cycle',cycle:'npm run test'},
+	const invalid: Record<string,string>[] = [{},{test:'npm run missing'},{test:'npm run cycle',cycle:'npm run test'},
 		{test:'vitest run',pretest:'echo partial'},{test:'vitest run',posttest:'echo extra'},
-		{test:'npm run all',all:'vitest run',preall:'echo partial'}]) {
+		{test:'npm run all',all:'vitest run',preall:'echo partial'}];
+	for (const scripts of invalid) {
 		save(scripts); expect(() => ownerTestCommand(root)).toThrow();
 	}
 });
@@ -59,6 +60,37 @@ it('compares both exact HEAD and source bytes without disclosing source contents
 it('rejects missing candidate custody without throwing or substituting an old receipt', () => {
 	const root = mkdtempSync(resolve(tmpdir(),'prerequisite-no-git-')); roots.push(root);
 	expect(custodyDiagnostics(new Map([[root,{commit:'0'.repeat(40),sourceDigest:'0'.repeat(64)}]]))).toHaveLength(1);
+});
+
+it('rejects inherited parent Git custody instead of attributing a copied owner to its parent',()=>{
+	const parent=mkdtempSync(resolve(tmpdir(),'prerequisite-parent-'));roots.push(parent);
+	const nested=resolve(parent,'copied-owner');mkdirSync(nested);
+	writeFileSync(resolve(nested,'candidate.ts'),'copied bytes');
+	for(const args of [['init','-q'],['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Parent only']])
+		expect(spawnSync('git',args,{cwd:parent}).status).toBe(0);
+	expect(()=>candidate(nested)).toThrow();
+});
+
+it('rejects unreadable tracked bytes without colliding with literal missing source content',()=>{
+	const root=mkdtempSync(resolve(tmpdir(),'prerequisite-missing-bytes-'));roots.push(root);
+	writeFileSync(resolve(root,'candidate.ts'),'missing');
+	for(const args of [['init','-q'],['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Readable source']])
+		expect(spawnSync('git',args,{cwd:root}).status).toBe(0);
+	const captured=candidate(root);rmSync(resolve(root,'candidate.ts'));
+	expect(()=>candidate(root)).toThrow();
+	expect(custodyDiagnostics(new Map([[root,captured]]))).toHaveLength(1);
+});
+
+it('retains canonical own-root custody for linked Git worktrees and symlink aliases',()=>{
+	const parent=mkdtempSync(resolve(tmpdir(),'prerequisite-worktree-'));roots.push(parent);
+	writeFileSync(resolve(parent,'candidate.ts'),'worktree source');
+	for(const args of [['init','-q'],['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Worktree source']])
+		expect(spawnSync('git',args,{cwd:parent}).status).toBe(0);
+	const worktree=resolve(parent,'linked-worktree');
+	expect(spawnSync('git',['worktree','add','--detach',worktree,'HEAD'],{cwd:parent}).status).toBe(0);
+	const alias=resolve(parent,'alias');symlinkSync(worktree,alias,'dir');
+	expect(candidate(alias)).toEqual(candidate(worktree));
+	expect(custodyDiagnostics(new Map([[alias,candidate(worktree)]]))).toEqual([]);
 });
 
 function ownerCatalog() {

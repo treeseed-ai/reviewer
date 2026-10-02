@@ -1,6 +1,41 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.own-root:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects inherited parent Git custody instead of attributing a copied owner to its parent
+  reviewer.prerequisites.readable-bytes:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects unreadable tracked bytes without colliding with literal missing source content
+  reviewer.prerequisites.linked-root:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: retains canonical own-root custody for linked Git worktrees and symlink aliases
+  reviewer.prerequisites.nested-owner:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks a copied nested owner before suites instead of borrowing its parent repository custody
+  reviewer.prerequisites.deleted-bytes:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: fails final-scene deletion of literal missing bytes without rewriting a passed suite receipt
+  reviewer.prerequisites.inherited-head:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks owner Git loss even when the inherited parent has the same commit and readable source bytes
+  reviewer.prerequisites.linked-admission:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: admits complete native suites and scenes for independently rooted linked worktrees through aliases
   reviewer.prerequisites.native-interruption:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"

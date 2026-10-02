@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { appendFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -40,7 +40,8 @@ it('blocks native scene side effects when an unselected unit test fails', () => 
 	const root = fixture(true); const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'unit-red');
 	expect(report.ok).toBe(false);
 	expect(readFileSync(resolve(root, '.treeseed/order'), 'utf8')).not.toContain('scene');
-	expect(report.diagnostics.map(item => item.message).join(' ')).toContain('prerequisite');
+	expect(report.diagnostics).toBeDefined();
+	expect(report.diagnostics!.map(item => item.message).join(' ')).toContain('prerequisite');
 });
 
 it('blocks acceptance when the complete integration suite contains a skipped assertion', () => {
@@ -130,7 +131,9 @@ it('rejects zero-exit scene candidate changes before another scene can execute',
 		const mutation = mode === 'deleted' ? "rmSync('tests/unit.test.ts');" : `writeFileSync('${mode === 'tracked' ? 'tests/unit.test.ts' : 'hidden.ts'}','changed');`;
 		writeFileSync(resolve(root,'scene.ts'), `import test from 'node:test'; import {writeFileSync,rmSync} from 'node:fs'; test('scene boundary',()=>{${mutation}}); test('next boundary',()=>{writeFileSync('.treeseed/next','ran');});`);
 		const plan = planLocalGuarantees(root,['proof']);
-		plan.verifiers['next.scene'] = {...plan.verifiers['proof.scene']!,definition:{...plan.verifiers['proof.scene']!.definition,testName:'next boundary'}};
+		const binding = plan.verifiers['proof.scene']!;
+		if (binding.definition.kind !== 'nodeTestCase') throw new Error('Fixture must bind a native Node case.');
+		plan.verifiers['next.scene'] = {...binding,definition:{...binding.definition,testName:'next boundary'}};
 		plan.entries[0]!.verifierRefs.push('next.scene');
 		const report = runLocalGuarantees(root,plan,`scene-${mode}`);
 		expect(report.ok,mode).toBe(false);
@@ -211,4 +214,50 @@ it('retains ongoing custody of transitive owners throughout native scene executi
 	expect(report.results[0]!.evidence.filter(path=>path.includes('prerequisite-'))).toHaveLength(3);
 	for (const path of report.results[0]!.evidence.filter(path=>path.includes('prerequisite-')))
 		expect(JSON.parse(readFileSync(resolve(owner,'.treeseed/guarantees/runs/transitive-custody',path),'utf8')).passed).toBe(true);
+});
+
+it('blocks a copied nested owner before suites instead of borrowing its parent repository custody',()=>{
+	const parent=fixture(),root=resolve(parent,'copied-owner');
+	cpSync(fixture(),root,{recursive:true});rmSync(resolve(root,'.git'),{recursive:true,force:true});
+	const report=runLocalGuarantees(root,planLocalGuarantees(root,['proof']),'inherited-root');
+	expect(report.ok).toBe(false);
+	expect(existsSync(resolve(root,'.treeseed/order'))).toBe(false);
+	const receipt=JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/inherited-root',report.results[0]!.evidence.at(-1)!),'utf8'));
+	expect(receipt.passed).toBe(false);expect(receipt.command).toEqual([]);
+});
+
+it('fails final-scene deletion of literal missing bytes without rewriting a passed suite receipt',()=>{
+	const root=fixture();writeFileSync(resolve(root,'candidate.ts'),'missing');
+	writeFileSync(resolve(root,'scene.ts'),"import test from 'node:test';import {rmSync} from 'node:fs';test('scene boundary',()=>{rmSync('candidate.ts');});");
+	for(const args of [['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Literal tracked bytes']])
+		expect(spawnSync('git',args,{cwd:root}).status).toBe(0);
+	const report=runLocalGuarantees(root,planLocalGuarantees(root,['proof']),'literal-missing-deleted');
+	expect(report.ok).toBe(false);expect(report.results[0]!.steps[0]!.status).toBe('failed');
+	const receipt=JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/literal-missing-deleted',report.results[0]!.evidence.at(-1)!),'utf8'));
+	expect(receipt).toMatchObject({passed:true,checks:{total:2,passed:2,failed:0}});
+});
+
+it('blocks owner Git loss even when the inherited parent has the same commit and readable source bytes',()=>{
+	const parent=fixture(),root=resolve(parent,'nested-owner');
+	cpSync(fixture(),root,{recursive:true});
+	writeFileSync(resolve(root,'scene.ts'),"import test from 'node:test';import {rmSync} from 'node:fs';test('scene boundary',()=>{rmSync('.git',{recursive:true,force:true});});");
+	for(const args of [['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Root custody loss']])
+		expect(spawnSync('git',args,{cwd:root}).status).toBe(0);
+	for(const args of [['fetch',root,'HEAD'],['switch','--detach','FETCH_HEAD']])
+		expect(spawnSync('git',args,{cwd:parent}).status).toBe(0);
+	const report=runLocalGuarantees(root,planLocalGuarantees(root,['proof']),'same-parent-head');
+	expect(report.ok).toBe(false);expect(report.results[0]!.steps[0]!.status).toBe('failed');
+	const receipt=JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/same-parent-head',report.results[0]!.evidence.at(-1)!),'utf8'));
+	expect(receipt).toMatchObject({passed:true,checks:{total:2,passed:2,failed:0}});
+});
+
+it('admits complete native suites and scenes for independently rooted linked worktrees through aliases',()=>{
+	const parent=fixture(),root=resolve(parent,'linked-owner'),alias=resolve(parent,'alias');
+	expect(spawnSync('git',['worktree','add','--detach',root,'HEAD'],{cwd:parent}).status).toBe(0);
+	symlinkSync(resolve(parent,'node_modules'),resolve(root,'node_modules'),'dir');symlinkSync(root,alias,'dir');
+	for(const [workspace,id] of [[root,'linked'],[alias,'alias']])
+		expect(runLocalGuarantees(workspace!,planLocalGuarantees(workspace!,['proof']),id!).ok).toBe(true);
+	const order=readFileSync(resolve(root,'.treeseed/order'),'utf8').trim().split('\n');
+	expect(order).toHaveLength(6);
+	for(const start of [0,3]){expect(order.slice(start,start+2).sort()).toEqual(['integration','unit']);expect(order[start+2]).toBe('scene');}
 });
