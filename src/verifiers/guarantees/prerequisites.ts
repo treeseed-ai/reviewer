@@ -164,7 +164,12 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 				report = JSON.parse(readFileSync(destination,'utf8'));
 			}
 			checks = { total: report.numTotalTests, passed: report.numPassedTests, failed: report.numFailedTests,
-				skipped: report.numPendingTests, todo: report.numTodoTests };
+				skipped: report.numPendingTests, todo: report.numTodoTests,
+				failures: Array.isArray(report.testResults) ? report.testResults.flatMap((file: unknown) => {
+					const assertions = row(file).assertionResults;
+					return Array.isArray(assertions) ? assertions.filter(value=>row(value).status !== 'passed')
+						.map(value=>({title:row(value).title,status:row(value).status})) : [];
+				}) : [] };
 			const after = candidate(root);
 			passed = status === 0 && !result.error && fullSuitePassed(report) && after.commit === custody.commit && after.sourceDigest === custody.sourceDigest
 				&& (!reporter || createHash('sha256').update(readFileSync(reporter)).digest('hex') === reporterDigest);

@@ -67,6 +67,7 @@ it('blocks native scene side effects for failed skipped todo cancelled crashed m
 		if(existsSync(resolve(root,'.treeseed/order')))expect(readFileSync(resolve(root,'.treeseed/order'),'utf8'),mode).not.toContain('scene');
 		if(mode==='filtered'||mode==='escaped')expect(existsSync(resolve(root,'.treeseed/order'))).toBe(false);
 		expect(JSON.stringify(receipt),mode).not.toContain('private fixture');
+		if(mode==='failure')expect(receipt.checks.failures).toEqual([{title:'integration',status:'failed'}]);
 	}
 });
 
