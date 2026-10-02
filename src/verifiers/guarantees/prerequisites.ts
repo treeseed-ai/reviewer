@@ -26,6 +26,19 @@ export function ownerTestCommand(root: string): string {
 	}
 }
 
+function fullTestEntrypoint(root: string) {
+	const script=ownerTestCommand(root);
+	const vitest=/^vitest run(?: --config (\S+))?$/u.exec(script);
+	const native=/^(?:npm run [\w:-]+ && )?node(?: --import tsx)? ([\w./-]+\.(?:ts|js|mjs))$/u.exec(script);
+	if(!vitest&&!native)throw new Error('Full prerequisite reporting requires an unfiltered declared entrypoint.');
+	const selected=vitest?.[1]??native?.[1];
+	const path=selected?realpathSync(resolve(root,selected)):null;
+	const local=path?relative(root,path):'';
+	if(local==='..'||local.startsWith(`..${sep}`)||local.startsWith(sep))
+		throw new Error('Full prerequisite entrypoint escapes its owner.');
+	return {config:vitest?path:null,native:Boolean(native)};
+}
+
 export function fullSuitePassed(value: unknown): boolean {
 	const report = row(value);
 	if (report.success !== true || !Number.isInteger(report.numTotalTests) || Number(report.numTotalTests) <= 0
@@ -71,13 +84,14 @@ export function participatingOwners(plan: LocalGuaranteePlan, workspace: string)
 	const packageDirectory = resolve(workspace, 'packages');
 	const catalog = [...new Set([workspace, ...Object.values(plan.verifiers).map(binding => binding.root),
 		...(existsSync(packageDirectory) ? readdirSync(packageDirectory).map(name => resolve(packageDirectory,name)) : [])]
-		.filter(root => existsSync(resolve(root,'package.json'))).map(root => realpathSync(root)))];
+		.filter(root => existsSync(resolve(root,'package.json'))||existsSync(resolve(root,'treeseed.package.yaml'))).map(root => realpathSync(root)))];
 	const packages = new Map<string,string[]>(), projects = new Map<string,string[]>(), documents = new Map<string,Row>();
 	const index = (map: Map<string,string[]>, id: unknown, root: string) => {
 		if (typeof id === 'string' && id) map.set(id,[...(map.get(id) ?? []),root]);
 	};
 	for (const root of catalog) {
-		index(packages,row(JSON.parse(readFileSync(resolve(root,'package.json'),'utf8'))).name,root);
+		if(existsSync(resolve(root,'package.json')))
+			index(packages,row(JSON.parse(readFileSync(resolve(root,'package.json'),'utf8'))).name,root);
 		const path = resolve(root,'treeseed.package.yaml');
 		if (!existsSync(path)) continue;
 		const development = row(row(parse(readFileSync(path,'utf8'))).development);
@@ -126,6 +140,13 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 	let roots: string[];
 	try { roots = participatingOwners(plan,workspace); }
 	catch { return {receipts,candidates,diagnostics:['Participating prerequisite owner composition is missing, malformed or ambiguous.']}; }
+	// Identify every supported whole-suite boundary before spending capacity on any owner.
+	const entrypoints=new Map<string,ReturnType<typeof fullTestEntrypoint>>();
+	for(const root of roots) {
+		try {entrypoints.set(root,fullTestEntrypoint(root));}
+		catch {diagnostics.push(`${root}: complete prerequisite suite entrypoint or native reporting is unavailable.`);}
+	}
+	const admitted=diagnostics.length===0;
 	for (const root of roots) {
 		const receiptPath = resolve(output, 'evidence', `prerequisite-${createHash('sha256').update(root).digest('hex')}.json`);
 		let passed = false, reason = '', custody: ReturnType<typeof candidate> | null = null;
@@ -135,23 +156,16 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 		const startedAt = new Date().toISOString();
 		try {
 			custody = candidate(root);
-			const script = ownerTestCommand(root);
-			const match = /^vitest run(?: --config (\S+))?$/u.exec(script);
+			if(!admitted)throw new Error('A participating full-suite entrypoint is unavailable.');
+			const {config,native}=entrypoints.get(root)!;
 			let result, report;
-			if (match) {
-				const config = match[1] ? realpathSync(resolve(root, match[1])) : null;
-				const configPath = config ? relative(root, config) : '';
-				if (configPath === '..' || configPath.startsWith(`..${sep}`) || configPath.startsWith(sep)) throw new Error('Full prerequisite test config escapes its owner.');
+			if (!native) {
 				command = [process.execPath,realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', ...(config ? ['--config', config] : []), '--reporter=json'];
 				result = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 1_200_000, maxBuffer: 32 * 1024 * 1024 });
 				status = result.status; signal = result.signal;
 				report = JSON.parse(result.stdout);
 			} else {
 				// Preserve the declared npm entrypoint, including its original build and runner.
-				const native = /^(?:npm run [\w:-]+ && )?node(?: --import tsx)? ([\w./-]+\.(?:ts|js|mjs))$/u.exec(script);
-				if (!native) throw new Error('Native prerequisite reporting requires an unfiltered declared runner.');
-				const runnerPath = relative(root,realpathSync(resolve(root,native[1]!)));
-				if (runnerPath === '..' || runnerPath.startsWith(`..${sep}`) || runnerPath.startsWith(sep)) throw new Error('Native full-suite runner escapes its owner.');
 				reporter = realpathSync(fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`,import.meta.url)));
 				reporterDigest = createHash('sha256').update(readFileSync(reporter)).digest('hex');
 				// Node loads custom reporters before --import hooks. Reuse tsx's scoped

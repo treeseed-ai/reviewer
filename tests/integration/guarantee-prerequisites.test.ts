@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { planLocalGuarantees, runLocalGuarantees } from '../../src/verifiers/guarantees/command.ts';
+import { candidate, participatingOwners } from '../../src/verifiers/guarantees/prerequisites.ts';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -214,6 +215,55 @@ it('retains ongoing custody of transitive owners throughout native scene executi
 	expect(report.results[0]!.evidence.filter(path=>path.includes('prerequisite-'))).toHaveLength(3);
 	for (const path of report.results[0]!.evidence.filter(path=>path.includes('prerequisite-')))
 		expect(JSON.parse(readFileSync(resolve(owner,'.treeseed/guarantees/runs/transitive-custody',path),'utf8')).passed).toBe(true);
+});
+
+it('retains exact discovered native source custody and blocks incomplete native evidence before every owner suite',()=>{
+	const {owner,dependency,transitive,plan}=compositionFixture();
+	rmSync(resolve(dependency,'package.json'));
+	const document=JSON.parse(readFileSync(resolve(dependency,'treeseed.package.yaml'),'utf8'));
+	document.verify={local:'verify-native.sh'};
+	writeFileSync(resolve(dependency,'treeseed.package.yaml'),JSON.stringify(document));
+	writeFileSync(resolve(dependency,'verify-native.sh'),"#!/bin/sh\nprintf ran > .treeseed/native-ran\nexit 0\n");
+	for(const args of [['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Declared native owner']])
+		expect(spawnSync('git',args,{cwd:dependency}).status).toBe(0);
+	const exact=candidate(dependency);
+	expect(participatingOwners(plan,owner)).toEqual([owner,dependency,transitive]);
+	const report=runLocalGuarantees(owner,plan,'native-owner-unreported');
+	expect(report.ok).toBe(false);
+	const receipts=report.results[0]!.evidence.filter(path=>path.includes('prerequisite-'))
+		.map(path=>JSON.parse(readFileSync(resolve(owner,'.treeseed/guarantees/runs/native-owner-unreported',path),'utf8')));
+	expect(receipts).toHaveLength(3);
+	expect(receipts.find(receipt=>receipt.root===dependency)).toMatchObject({root:dependency,...exact,passed:false,command:[],checks:null});
+	for(const root of [owner,dependency,transitive])expect(existsSync(resolve(root,'.treeseed/order'))).toBe(false);
+	expect(existsSync(resolve(dependency,'.treeseed/native-ran'))).toBe(false);
+});
+
+it('preflights every declared entrypoint before spending capacity on an earlier valid full suite',()=>{
+	for(const mode of ['missing','filtered','hooked','escaped']) {
+		const {owner,dependency,transitive,plan}=compositionFixture();
+		const scripts=mode==='missing'?{}:mode==='filtered'?{test:'vitest run tests/unit.test.ts'}:
+			mode==='hooked'?{test:'vitest run',pretest:'node side-effect.ts'}:{test:'vitest run --config outside.config.ts'};
+		writeFileSync(resolve(dependency,'package.json'),JSON.stringify({name:'dependency',scripts}));
+		if(mode==='escaped')symlinkSync(resolve(owner,'vitest.config.ts'),resolve(dependency,'outside.config.ts'));
+		const report=runLocalGuarantees(owner,plan,`admission-${mode}`);
+		expect(report.ok,mode).toBe(false);
+		for(const root of [owner,dependency,transitive])expect(existsSync(resolve(root,'.treeseed/order')),mode).toBe(false);
+		for(const path of report.results[0]!.evidence.filter(path=>path.includes('prerequisite-'))) {
+			const receipt=JSON.parse(readFileSync(resolve(owner,`.treeseed/guarantees/runs/admission-${mode}`,path),'utf8'));
+			expect(receipt).toMatchObject({passed:false,command:[],exitCode:null,checks:null});
+		}
+	}
+});
+
+it('recognizes canonical non-npm dependency aliases while refusing parent Git custody for copied native source',()=>{
+	const {owner,dependency,transitive,plan}=compositionFixture();rmSync(resolve(dependency,'package.json'));
+	const nested=resolve(owner,'native-copy');cpSync(dependency,nested,{recursive:true});rmSync(resolve(nested,'.git'),{recursive:true,force:true});
+	plan.verifiers['dependency']={...plan.verifiers['dependency']!,root:nested};
+	const roots=participatingOwners(plan,owner);
+	expect(roots).toContain(nested);
+	expect(()=>candidate(nested)).toThrow();
+	const report=runLocalGuarantees(owner,plan,'native-copy');expect(report.ok).toBe(false);
+	for(const root of [owner,nested,transitive])expect(existsSync(resolve(root,'.treeseed/order'))).toBe(false);
 });
 
 it('blocks a copied nested owner before suites instead of borrowing its parent repository custody',()=>{

@@ -1,6 +1,31 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.native-owner-closure:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: discovers declared non-npm projects through their own YAML target closure without substituting a nested package
+  reviewer.prerequisites.native-owner-ambiguity:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects ambiguous native YAML identities instead of preferring an npm project with the same identity
+  reviewer.prerequisites.native-owner-custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains exact discovered native source custody and blocks incomplete native evidence before every owner suite
+  reviewer.prerequisites.all-owner-entrypoints:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: preflights every declared entrypoint before spending capacity on an earlier valid full suite
+  reviewer.prerequisites.native-owner-root:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: recognizes canonical non-npm dependency aliases while refusing parent Git custody for copied native source
   reviewer.prerequisites.own-root:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
