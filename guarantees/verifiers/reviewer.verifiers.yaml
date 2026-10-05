@@ -2,7 +2,7 @@ schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
   reviewer.prerequisites.native-output:
-    kind: vitestTestCase
+    kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/integration/guarantee-prerequisites.test.ts
     testName: uses complete native Vitest report bytes despite child stdout without admitting failed suites
