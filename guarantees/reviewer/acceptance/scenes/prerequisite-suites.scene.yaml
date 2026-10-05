@@ -2,6 +2,9 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: native-output
+    action: {verifier: reviewer.prerequisites.native-output}
+    expect: {status: passed}
   - id: source-permissions
     action: {verifier: reviewer.prerequisites.source-permissions}
     expect: {status: passed}
