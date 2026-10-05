@@ -201,10 +201,13 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 				status = result.status; signal = result.signal;
 				report = JSON.parse(result.stdout);
 			} else if (!native) {
-				command = [process.execPath,realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', ...(config ? ['--config', config] : []), '--reporter=json'];
+				// Native child tools may inherit stdout; consume only Vitest's own report file.
+				temporary = mkdtempSync(resolve(tmpdir(),'guarantee-vitest-suite-'));
+				const destination = resolve(temporary,'report.json');
+				command = [process.execPath,realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', ...(config ? ['--config', config] : []), '--reporter=json', `--outputFile=${destination}`];
 				result = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 1_200_000, maxBuffer: 32 * 1024 * 1024 });
 				status = result.status; signal = result.signal;
-				report = JSON.parse(result.stdout);
+				report = JSON.parse(readFileSync(destination,'utf8'));
 			} else {
 				// Preserve the declared npm entrypoint, including its original build and runner.
 				reporter = realpathSync(fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`,import.meta.url)));
