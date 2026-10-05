@@ -46,6 +46,26 @@ it('blocks native scene side effects when an unselected unit test fails', () => 
 	expect(report.diagnostics!.map(item => item.message).join(' ')).toContain('prerequisite');
 });
 
+it('uses complete native Vitest report bytes despite child stdout without admitting failed suites', () => {
+	for (const failing of [false, true]) {
+		const root = fixture(failing);
+		appendFileSync(resolve(root, 'tests/integration.test.ts'), `\nimport {execFileSync} from 'node:child_process'; it('native operation output',()=>{execFileSync(process.execPath,['-e',${JSON.stringify("process.stdout.write('[{\"filename\":\"native-runtime.tgz\"}]\\n');") }],{stdio:'inherit'});});\n`);
+		const before = candidate(root), plan = planLocalGuarantees(root, ['proof']);
+		for (const runId of ['first', 'fresh']) {
+			const report = runLocalGuarantees(root, plan, `native-output-${failing}-${runId}`);
+			expect(report.ok).toBe(!failing);
+			const receipt = JSON.parse(readFileSync(resolve(root, `.treeseed/guarantees/runs/native-output-${failing}-${runId}`, report.results[0]!.evidence.at(-1)!), 'utf8'));
+			expect(receipt).toMatchObject({ ...before, passed: !failing, exitCode: failing ? 1 : 0, signal: null,
+				checks: { total: 3, passed: failing ? 2 : 3, failed: failing ? 1 : 0, skipped: 0, todo: 0 } });
+			expect(candidate(root)).toEqual(before);
+		}
+		const order = readFileSync(resolve(root, '.treeseed/order'), 'utf8').trim().split('\n');
+		expect(order.filter(value => value === 'unit')).toHaveLength(2);
+		expect(order.filter(value => value === 'integration')).toHaveLength(2);
+		expect(order.filter(value => value === 'scene')).toHaveLength(failing ? 0 : 2);
+	}
+});
+
 it('blocks acceptance when the complete integration suite contains a skipped assertion', () => {
 	const root = fixture(false, true); const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'integration-skipped');
 	expect(report.ok).toBe(false);
