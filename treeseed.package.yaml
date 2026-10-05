@@ -1,16 +1,71 @@
 schemaVersion: treeseed.package/v1
-id: reviewer
-name: "@treeseed/reviewer"
-repository:
-  owner: treeseed-ai
-  name: reviewer
+id: "@treeseed/reviewer"
+name: TreeSeed Reviewer
+kind: node-typescript
+type: local-tool
+repository: treeseed-ai/reviewer
+capabilities: { save: true, verify: true, publish: false, deploy: false, localOnly: true }
+workflowTemplateVersion: "1"
+verify:
+  fast: npm run verify
+  local: npm run verify:local
+  release: npm run verify
+artifacts:
+  - provider: github
+    name: treeseed-reviewer
+releaseGate:
+  workflow: verify.yml
+development:
+  schemaVersion: treeseed.development-runtime/v1
+  project: { id: reviewer, repository: treeseed-ai/reviewer }
+  defaults: { leaseSeconds: 14400, restoreOnFailure: true }
+  targets:
+    - id: companion
+      kind: local-companion
+      platforms: [linux-amd64, linux-arm64, darwin-arm64, darwin-amd64]
+      runtimeRequirements: [node>=22, browser]
+      sourceRoots: [src]
+      ignoredPaths: [dist, node_modules]
+      operations:
+        start: { command: npm, args: [run, dev, --, --port, "4174"], environment: {}, timeoutSeconds: 86400 }
+        build: { command: npm, args: [run, build:dist], environment: {}, timeoutSeconds: 900 }
+        verify: { command: npm, args: [run, test], environment: {}, timeoutSeconds: 900 }
+      ready: { kind: http, path: /, expectedStatus: 200, timeoutSeconds: 120 }
+      outputs: []
+      endpoints: [{ id: http, protocol: http, port: 4174, visibility: loopback, authentication: none }]
+      dependencies:
+        - { id: sdk, target: package, locality: local, reaction: rebuild }
+        - { id: ui, target: package, locality: local, reaction: reload }
+      statePolicy: stateless
+      migrationPolicy: none
+      secretRefs: {}
+      shutdown: { graceSeconds: 10, activeWorkPolicy: block }
+      resources: {}
+      logs: [.treeseed/development/companion.log]
+      forbiddenOperations: [public-route, non-loopback-bind, remote-start]
+      freeze:
+        kind: archive
+        operation: { command: npm, args: [pack, --json], environment: {}, timeoutSeconds: 900 }
+        artifacts: [treeseed-reviewer-*.tgz]
+        contractOperations: []
+      promotion: { liveAdmissible: false, candidateRequiresVerification: true }
+standards:
+  schemaVersion: 1
+  workflow: { enabled: true }
+  produced:
+    - { id: "@treeseed/reviewer/workplan", family: json-schema, version: "1.0.0", semanticRange: "^1.0.0", source: src/shared/workplan.ts, artifact: .treeseed/standards/workplan.json, verifier: npm run verify }
+  consumed:
+    - { id: "@treeseed/sdk/typescript-public-api", family: typescript, version: "1.0.0", semanticRange: "^1.0.0", source: node_modules/@treeseed/sdk, verifier: npm run verify }
+    - { id: "@treeseed/ui/presentation-catalog", family: behavioral, version: "1.0.0", semanticRange: "^1.0.0", source: node_modules/@treeseed/ui, verifier: npm run verify }
+    - { id: "@treeseed/platform/composition-guarantee-run", family: behavioral, version: "1.0.0", semanticRange: "^1.0.0", source: .treeseed/guarantees/runs, verifier: npm run verify }
+  guarantees: [loopback-only, local-evidence-custody, immutable-local-tool-artifact, platform-run-bundle-consumer]
+  deprecations: []
+  runtimes: [node>=22, browser-loopback]
+  rollbackOperations: [restore-previous-local-artifact]
 projectArchitecture:
-  rootPath: "."
-  sitePath: "docs"
-  contentRuntimeSource: none
+  topology: split_site_content
+  rootPath: .
+  sitePath: docs
+  contentPath: src/content
+  contentRuntimeSource: r2_preview_overlay
   localContentMaterialization: none
-workflows:
-  verify: verify
-release:
-  packageManager: npm
-  releaseGate: verify

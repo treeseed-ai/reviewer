@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
-import { startTreeseedReviewerServer } from '../server/app.ts';
+import { startReviewerServer } from '../server/app.ts';
 
 function argValue(args: string[], name: string) {
   const index = args.indexOf(name);
@@ -26,7 +26,7 @@ const workspace = resolve(argValue(args, '--workspace') ?? process.cwd());
 const host = argValue(args, '--host') ?? '127.0.0.1';
 const port = Number(argValue(args, '--port') ?? 4757);
 const runId = argValue(args, '--run-id') ?? argValue(args, '--run-path');
-const started = await startTreeseedReviewerServer({ workspaceRoot: workspace, host, port });
+const started = await startReviewerServer({ workspaceRoot: workspace, host, port });
 const url = runId ? `${started.url}runs/${encodeURIComponent(runId)}/review` : started.url;
 console.log(`TreeSeed reviewer listening on ${url}`);
 

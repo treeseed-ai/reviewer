@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import type {
@@ -13,8 +14,8 @@ import type {
   ReviewerTask,
 } from '../shared/contracts.ts';
 import { buildReviewItems } from '../shared/guarantee-review.ts';
-import type { TreeseedGuaranteePlanReport, TreeseedGuaranteeRunReport } from '@treeseed/sdk/guarantees';
-import { discoverTreeseedGuarantees } from '@treeseed/sdk/guarantees';
+import type { GuaranteePlanReport, GuaranteeRunReport } from '@treeseed/sdk/guarantees';
+import { discoverGuarantees } from '@treeseed/sdk/guarantees';
 import { assertInsideWorkspace, directoryExists, fileExists } from './workspace.ts';
 
 function readJson<T>(path: string): T {
@@ -34,7 +35,7 @@ function runPaths(workspaceRoot: string, kind: ReviewerRunKind, runId: string): 
   };
 }
 
-function summaryFromReport(paths: ReviewerRunPaths, report: TreeseedGuaranteeRunReport): ReviewerGuaranteeRunSummary {
+function summaryFromReport(paths: ReviewerRunPaths, report: GuaranteeRunReport): ReviewerGuaranteeRunSummary {
   return {
     runId: report.runId || paths.runId,
     kind: paths.kind,
@@ -62,7 +63,7 @@ export function discoverGuaranteeRuns(workspaceRoot: string): ReviewerGuaranteeR
       const paths = runPaths(workspaceRoot, kind, entry.name);
       if (!fileExists(paths.reportPath)) continue;
       try {
-        out.push(summaryFromReport(paths, readJson<TreeseedGuaranteeRunReport>(paths.reportPath)));
+        out.push(summaryFromReport(paths, readJson<GuaranteeRunReport>(paths.reportPath)));
       } catch {
         // Ignore malformed run folders in the selector.
       }
@@ -77,7 +78,7 @@ export function discoverGuaranteeRuns(workspaceRoot: string): ReviewerGuaranteeR
 }
 
 export function discoverGuaranteeCatalog(workspaceRoot: string): ReviewerGuaranteeCatalogEntry[] {
-  const registry = discoverTreeseedGuarantees({ workspaceRoot });
+  const registry = discoverGuarantees({ workspaceRoot });
   return registry.guarantees
     .filter((entry) => entry.manifest)
     .map((entry) => {
@@ -121,8 +122,8 @@ export function loadGuaranteeReviewRun(workspaceRoot: string, runIdOrPath: strin
     markdownPath: resolve(outputRoot, 'report.md'),
     generatedCsvPath: resolve(outputRoot, 'generated.csv'),
   };
-  const report = readJson<TreeseedGuaranteeRunReport>(paths.reportPath);
-  const plan = fileExists(paths.planPath) ? readJson<TreeseedGuaranteePlanReport>(paths.planPath) : null;
+  const report = readJson<GuaranteeRunReport>(paths.reportPath);
+  const plan = fileExists(paths.planPath) ? readJson<GuaranteePlanReport>(paths.planPath) : null;
   const run = summaryFromReport(paths, report);
   return {
     run,
@@ -132,18 +133,31 @@ export function loadGuaranteeReviewRun(workspaceRoot: string, runIdOrPath: strin
   };
 }
 
-export function commandArgsForGuarantees(action: 'plan' | 'run', request: ReviewerGuaranteePlanRequest | ReviewerGuaranteeRunRequest) {
-  const args = ['trsd', 'guarantees', action, '--environment', request.environment, '--json'];
+function reviewerGuaranteeScript(workspaceRoot: string) {
+  try {
+    const manifest = createRequire(resolve(workspaceRoot, 'package.json')).resolve('@treeseed/reviewer/package.json');
+    return resolve(manifest, '../dist/verifiers/guarantees/command.js');
+  } catch {
+    const candidates = [resolve(import.meta.dirname, '../verifiers/guarantees/command.js'),
+      resolve(import.meta.dirname, '../../dist/verifiers/guarantees/command.js'),
+      resolve(import.meta.dirname, './verifiers/guarantees/command.js')];
+    return candidates.find(fileExists) ?? candidates[0]!;
+  }
+}
+
+export function commandArgsForGuarantees(action: 'plan' | 'run', request: ReviewerGuaranteePlanRequest | ReviewerGuaranteeRunRequest, workspaceRoot = process.cwd()) {
+  const args = [process.execPath, reviewerGuaranteeScript(workspaceRoot), '--workspace', workspaceRoot,
+    ...(action === 'plan' ? ['--plan'] : []), '--environment', request.environment];
   const filter = request.filter ?? {};
-  if (filter.ownerPackage) args.push('--owner-package', filter.ownerPackage);
-  if (filter.type) args.push('--type', filter.type);
-  if (filter.subtype) args.push('--subtype', filter.subtype);
-  if (filter.gate) args.push('--gate', String(filter.gate));
-  if (filter.status) args.push('--status', String(filter.status));
-  for (const id of filter.ids ?? []) args.push('--id', id);
-  for (const index of filter.journeyIndexes ?? []) args.push('--journey-index', String(index));
+  if (filter.ownerPackage) args.push('--guarantee-owner-package', String(filter.ownerPackage));
+  if (filter.type) args.push('--types', String(filter.type));
+  if (filter.subtype) args.push('--subtypes', String(filter.subtype));
+  if (filter.gate) args.push('--gates', String(filter.gate));
+  if (filter.status) args.push('--statuses', String(filter.status));
+  else if (request.includePlanned) args.push('--statuses', 'active,planned');
+  if (Array.isArray(filter.ids) && filter.ids.length) args.push('--ids', filter.ids.map(String).join(','));
+  if (Array.isArray(filter.journeyIndexes) && filter.journeyIndexes.length) args.push('--journey-indexes', filter.journeyIndexes.map(String).join(','));
   if (request.includeDependencies === false) args.push('--no-dependencies');
-  if (request.includePlanned) args.push('--include-planned');
   if (request.device) args.push('--device', request.device);
   if (action === 'run') {
     const run = request as ReviewerGuaranteeRunRequest;
@@ -167,9 +181,8 @@ function parseJsonReport(stdout: string) {
 }
 
 export function resolveCommand(workspaceRoot: string, command: string) {
-  if (command !== 'trsd') return command;
-  const local = resolve(workspaceRoot, 'node_modules', '.bin', 'trsd');
-  return existsSync(local) ? local : command;
+  if (command === process.execPath) return command;
+  return resolve(workspaceRoot, command);
 }
 
 function timestamp() {
@@ -188,8 +201,12 @@ function appendTaskLine(task: ReviewerTask, line: string) {
 export function runGuaranteeCommand(workspaceRoot: string, request: ReviewerGuaranteePlanRequest, action?: 'plan'): Promise<ReviewerCommandResult>;
 export function runGuaranteeCommand(workspaceRoot: string, request: ReviewerGuaranteeRunRequest, action: 'run'): Promise<ReviewerCommandResult>;
 export function runGuaranteeCommand(workspaceRoot: string, request: ReviewerGuaranteePlanRequest | ReviewerGuaranteeRunRequest, action: 'plan' | 'run' = 'plan'): Promise<ReviewerCommandResult> {
-  const full = commandArgsForGuarantees(action, request);
+  const full = commandArgsForGuarantees(action, request, workspaceRoot);
   const [command, ...args] = full;
+  if (!fileExists(args[0] ?? '')) return Promise.resolve({
+    ok: false, exitCode: null, command: full, stdout: '',
+    stderr: 'Reviewer guarantee runner is unavailable. Build or install the Reviewer package.',
+  });
   return new Promise((resolvePromise) => {
     const child = spawn(resolveCommand(workspaceRoot, command!), args, { cwd: workspaceRoot, env: process.env, shell: false });
     const stdout: string[] = [];
@@ -213,11 +230,19 @@ export function runGuaranteeCommand(workspaceRoot: string, request: ReviewerGuar
 
 export function startGuaranteeRunTask(input: { workspaceRoot: string; request: ReviewerGuaranteeRunRequest; tasks: Map<string, ReviewerTask> }) {
   const id = `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const command = commandArgsForGuarantees('run', input.request);
+  const command = commandArgsForGuarantees('run', input.request, input.workspaceRoot);
   const beforeRunIds = new Set(discoverGuaranteeRuns(input.workspaceRoot).map((run) => run.runId));
   const task: ReviewerTask = { id, status: 'running', command, startedAt: timestamp(), stdout: [], stderr: [], output: [], lastOutputAt: timestamp() };
   input.tasks.set(id, task);
   const [cmd, ...args] = command;
+  if (!fileExists(args[0] ?? '')) {
+    task.status = 'failed';
+    task.completedAt = timestamp();
+    task.stderr.push('Reviewer guarantee runner is unavailable. Build or install the Reviewer package.\n');
+    task.result = { ok: false, exitCode: null, command, stdout: '', stderr: task.stderr.join('') };
+    appendTaskLine(task, 'Reviewer guarantee runner is unavailable; no fallback or fabricated evidence was used.');
+    return task;
+  }
   const executable = resolveCommand(input.workspaceRoot, cmd!);
   appendTaskLine(task, `starting guarantee run task ${id}`);
   appendTaskLine(task, `workspace: ${input.workspaceRoot}`);

@@ -3,8 +3,8 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { contentTypeFor, resolveEvidencePath } from '../src/server/evidence.ts';
-import { writeDraft, readDraft } from '../src/server/workplans.ts';
+import { contentTypeFor, resolveEvidencePath } from '../../src/server/evidence.ts';
+import { writeDraft, readDraft } from '../../src/server/workplans.ts';
 
 describe('route contracts', () => {
   it('rejects evidence paths outside the workspace', () => {

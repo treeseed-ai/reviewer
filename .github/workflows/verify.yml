@@ -1,0 +1,68 @@
+name: Verify TreeSeed Reviewer
+
+on:
+  push:
+    branches: [staging, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.12.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install native assertion integration toolchain
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.3.4.18"
+          elixir-version: "1.17.3"
+      - name: Verify released dependency custody
+        run: |
+          node -e "import('@treeseed/sdk/operator-contracts')"
+          node -e "const value=require('./node_modules/@treeseed/ui/package.json').version; if(!value) process.exit(1)"
+      - run: npm run verify
+      - name: Verify complete-suite acceptance prerequisites
+        run: node dist/verifiers/guarantees/command.js --workspace . --ids guarantee.reviewer.acceptance.prerequisites --run-id reviewer-prerequisites-${{ github.run_id }}-${{ github.run_attempt }} --environment local
+      - name: Upload acceptance prerequisite evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewer-prerequisites-${{ github.sha }}
+          path: .treeseed/guarantees/runs/reviewer-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Pack verified artifact
+        run: mkdir -p artifacts && npm pack --json --ignore-scripts --pack-destination artifacts
+      - name: Seal protected staging candidate
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          npm sbom --sbom-format cyclonedx > artifacts/sbom.cdx.json
+          archive="$(find artifacts -maxdepth 1 -name '*.tgz' -print -quit)"
+          npm run release:custody -- seal artifacts/release-evidence-v1.json "$archive"
+          npm run release:custody -- verify artifacts/release-evidence-v1.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reviewer-${{ github.sha }}
+          path: artifacts/*.tgz
+          if-no-files-found: error
+          retention-days: 90
+      - name: Upload sealed staging custody
+        if: github.ref == 'refs/heads/staging'
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewer-candidate-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30

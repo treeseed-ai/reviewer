@@ -1,0 +1,42 @@
+schemaVersion: treeseed.guarantee/v1
+id: guarantee.reviewer.acceptance.prerequisites
+journey: Run complete unit and integration suites before acceptance
+ownerPackage: "@treeseed/reviewer"
+type: reviewer
+subtype: acceptance
+status: active
+surface: cli
+summary: Complete declared owner suites run once on exact candidates before any scene, with failing or incomplete prerequisite evidence blocking acceptance.
+scene:
+  required: true
+  manifest: guarantees/reviewer/acceptance/scenes/prerequisite-suites.scene.yaml
+api:
+  required: true
+  verifierRefs: [reviewer.prerequisites.complete, reviewer.prerequisites.entrypoint]
+negativeCases:
+  - id: transitive-source-mutation
+    verifierRefs: [reviewer.prerequisites.transitive-custody]
+  - id: unresolved-composition
+    verifierRefs: [reviewer.prerequisites.invalid-composition, reviewer.prerequisites.unknown-owners]
+  - id: ignored-participating-owner
+    verifierRefs: [reviewer.prerequisites.transitive-suites, reviewer.prerequisites.declared-owner]
+  - id: malformed-prerequisite
+    verifierRefs: [reviewer.prerequisites.malformed]
+  - id: failed-unselected-test
+    verifierRefs: [reviewer.prerequisites.failed]
+  - id: skipped-integration
+    verifierRefs: [reviewer.prerequisites.skipped]
+  - id: missing-full-suite
+    verifierRefs: [reviewer.prerequisites.missing]
+  - id: empty-or-filtered-suite
+    verifierRefs: [reviewer.prerequisites.empty]
+  - id: candidate-mutation
+    verifierRefs: [reviewer.prerequisites.mutation]
+  - id: other-owner-failure
+    verifierRefs: [reviewer.prerequisites.owners]
+  - id: escaped-or-missing-custody
+    verifierRefs: [reviewer.prerequisites.custody]
+  - id: stale-cross-owner-candidate
+    verifierRefs: [reviewer.prerequisites.cross-owner-change]
+  - id: scene-invalidates-prerequisites
+    verifierRefs: [reviewer.prerequisites.scene-change, reviewer.prerequisites.final-custody]

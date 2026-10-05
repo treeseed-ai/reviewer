@@ -34,7 +34,7 @@ async function listenFirstAvailable(server: ReturnType<typeof createServer>, hos
   throw new Error(`No available reviewer port found starting at ${requestedPort}.`);
 }
 
-export async function startTreeseedReviewerServer(options: ReviewerServerOptions = {}) {
+export async function startReviewerServer(options: ReviewerServerOptions = {}) {
   const packageRoot = options.packageRoot ?? packageRootFromImportMeta();
   const context: ReviewerServerContext = {
     workspaceRoot: resolve(options.workspaceRoot ?? process.cwd()),

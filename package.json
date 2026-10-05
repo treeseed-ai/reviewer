@@ -1,6 +1,6 @@
 {
   "name": "@treeseed/reviewer",
-  "version": "0.1.0-dev",
+  "version": "0.1.0-rc.13",
   "description": "Local-only TreeSeed guarantee run reviewer and AI workplan generator.",
   "license": "Apache-2.0",
   "repository": {
@@ -27,7 +27,9 @@
   },
   "bin": {
     "treeseed-reviewer": "./dist/bin/reviewer.js",
-    "trsd-reviewer": "./dist/bin/reviewer.js"
+    "trsd-reviewer": "./dist/bin/reviewer.js",
+    "treeseed-reviewer-verify-browser-scenes": "./dist/verifiers/browser-scenes.js",
+    "treeseed-reviewer-guarantees": "./dist/verifiers/guarantees/command.js"
   },
   "scripts": {
     "setup": "npm install",
@@ -35,30 +37,37 @@
     "dev": "vite --host 127.0.0.1",
     "build": "npm run build:dist",
     "build:dist": "vite build && node --import tsx ./scripts/build-server.ts",
-    "lint": "npm run build:dist",
+    "release:custody": "node --import tsx ./scripts/release-custody.ts",
+    "check:file-lengths": "node --import tsx ./scripts/check-file-lengths.ts && npm run check:file-architecture",
+    "check:file-architecture": "node --import tsx ./scripts/check-file-architecture.ts",
+    "lint": "npm run check:file-lengths && npm run build:dist",
     "test": "vitest run --config ./vitest.config.ts",
     "test:guarantees": "vitest run --config ./vitest.guarantees.config.ts",
     "test:guarantees:coverage": "vitest run --config ./vitest.guarantees.config.ts --coverage",
-    "verify": "npm run build:dist && npm run test",
+    "verify": "npm run check:file-lengths && npm run build:dist && npm run test",
     "verify:local": "npm run verify",
     "verify:direct": "npm run verify",
+    "release:check-tag": "node --import tsx ./scripts/assert-release-tag-version.ts",
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": "github:treeseed-ai/cli#3ea70b6c2cdcc840b515a50c7c6965d6905f5a48",
-    "@treeseed/sdk": "github:treeseed-ai/sdk#1e29c9b01f8659ee897e9e41ca88a5e3b402bc19",
+    "@treeseed/cli": ">=0.13.0-rc.23 <0.14.0",
+    "@treeseed/sdk": ">=0.13.0-rc.82 <0.14.0",
+    "@treeseed/ui": ">=0.12.18-rc.11 <0.14.0",
+    "fflate": "0.8.2",
+    "playwright-core": "1.60.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "tsx": "^4.21.0",
     "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@vitest/coverage-v8": "^4.1.2",
     "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "^4.1.2",
     "esbuild": "^0.28.0",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.5",
     "vitest": "^4.1.2"

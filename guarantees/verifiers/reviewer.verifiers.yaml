@@ -1,14 +1,330 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.failure-criterion:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: retains only controlled prerequisite failure criteria without copying stack or assertion prose
+  reviewer.prerequisites.failure-stage:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains a real full-suite controlled failure stage without copying native failure prose
+  reviewer.prerequisites.exunit-declaration:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: resolves one complete native Elixir entrypoint from the existing owner verification declaration
+  reviewer.prerequisites.exunit-declaration-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: rejects missing malformed filtered and shell native declarations without borrowing an npm identity
+  reviewer.prerequisites.exunit-complete:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: admits declared complete ExUnit assertions once before scenes and reruns them only for a new invocation
+  reviewer.prerequisites.exunit-assertion-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: blocks real ExUnit failed skipped and excluded assertions even when skipped frameworks exit zero
+  reviewer.prerequisites.exunit-evidence-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: blocks empty missing truncated and mixed ExUnit evidence instead of accepting a process exit code
+  reviewer.prerequisites.exunit-custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: rejects a zero-exit ExUnit suite that mutates its exact candidate after all assertions pass
+  reviewer.prerequisites.exunit-entrypoint-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: preflights declared ExUnit filters hooks missing and escaped scripts before any native execution
+  reviewer.prerequisites.native-owner-closure:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: discovers declared non-npm projects through their own YAML target closure without substituting a nested package
+  reviewer.prerequisites.native-owner-ambiguity:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects ambiguous native YAML identities instead of preferring an npm project with the same identity
+  reviewer.prerequisites.native-owner-custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains exact discovered native source custody and blocks incomplete native evidence before every owner suite
+  reviewer.prerequisites.all-owner-entrypoints:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: preflights every declared entrypoint before spending capacity on an earlier valid full suite
+  reviewer.prerequisites.native-owner-root:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: recognizes canonical non-npm dependency aliases while refusing parent Git custody for copied native source
+  reviewer.prerequisites.own-root:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects inherited parent Git custody instead of attributing a copied owner to its parent
+  reviewer.prerequisites.readable-bytes:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects unreadable tracked bytes without colliding with literal missing source content
+  reviewer.prerequisites.linked-root:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: retains canonical own-root custody for linked Git worktrees and symlink aliases
+  reviewer.prerequisites.nested-owner:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks a copied nested owner before suites instead of borrowing its parent repository custody
+  reviewer.prerequisites.deleted-bytes:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: fails final-scene deletion of literal missing bytes without rewriting a passed suite receipt
+  reviewer.prerequisites.inherited-head:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks owner Git loss even when the inherited parent has the same commit and readable source bytes
+  reviewer.prerequisites.linked-admission:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: admits complete native suites and scenes for independently rooted linked worktrees through aliases
+  reviewer.prerequisites.native-interruption:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: blocks explicit native abort and deadline expiry with complete terminal evidence before scenes
+  reviewer.prerequisites.native-interruption-events:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-reporter.test.ts
+    testName: rejects aborted and expired native terminals under either supported Node failure classification
+  reviewer.prerequisites.native-containers:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-reporter.test.ts
+    testName: blocks failed skipped and todo suite containers even when an aggregate claims every test passed
+  reviewer.prerequisites.native-complete:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: admits complete native suites through their original build and one root reporter before scenes
+  reviewer.prerequisites.native-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: blocks native scene side effects for failed skipped todo cancelled crashed missing empty and filtered full suites
+  reviewer.prerequisites.native-mutation:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: blocks a zero-exit native suite that changes the exact source candidate
+  reviewer.prerequisites.native-reporter-custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: blocks changed native reporter artifact custody even when all source tests pass
+  reviewer.prerequisites.native-source:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/native-prerequisites.test.ts
+    testName: uses the same native terminal reporter from TypeScript source without copying stale build output
+  reviewer.prerequisites.native-events:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-reporter.test.ts
+    testName: normalizes native terminal assertions and aggregate counts without suite containers or private output
+  reviewer.prerequisites.native-summary:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-reporter.test.ts
+    testName: rejects missing duplicate malformed empty inconsistent and unsuccessful native summaries
+  reviewer.prerequisites.native-assertions:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-reporter.test.ts
+    testName: rejects skipped todo failed and unmeasured native assertions without retaining failure prose
+  reviewer.prerequisites.transitive-custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains ongoing custody of transitive owners throughout native scene execution
+  reviewer.prerequisites.composition:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: resolves arbitrary workspace owners and only the declared transitive target closure
+  reviewer.prerequisites.invalid-composition:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects missing duplicate malformed and unbound owner or target declarations
+  reviewer.prerequisites.transitive-suites:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: runs declared transitive integrated owners once and blocks every scene on an indirect failure
+  reviewer.prerequisites.unknown-owners:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks unknown and ambiguous integrated dependencies before any native side effect
+  reviewer.prerequisites.declared-owner:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: tests the declared guarantee owner even when its verifier belongs to another package
+  reviewer.prerequisites.exact-candidate:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: compares both exact HEAD and source bytes without disclosing source contents
+  reviewer.prerequisites.lost-candidate:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects missing candidate custody without throwing or substituting an old receipt
+  reviewer.prerequisites.cross-owner-change:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks all scenes when a later owner suite changes an earlier tested candidate
+  reviewer.prerequisites.scene-change:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects zero-exit scene candidate changes before another scene can execute
+  reviewer.prerequisites.final-custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains passed suite receipts but fails a final scene that destroys Git custody
+  reviewer.prerequisites.complete:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: accepts only complete observed full-suite evidence without skipped pending or failed boundaries
+  reviewer.prerequisites.malformed:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects malformed skipped failed absent and unmeasured assertion evidence
+  reviewer.prerequisites.entrypoint:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: resolves the declared complete test entrypoint without filters and rejects cyclic missing or hooked delegation
+  reviewer.prerequisites.order:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: runs every owning unit and integration assertion before any scene and repeats suites for a fresh invocation
+  reviewer.prerequisites.failed:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks native scene side effects when an unselected unit test fails
+  reviewer.prerequisites.skipped:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks acceptance when the complete integration suite contains a skipped assertion
+  reviewer.prerequisites.missing:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: does not execute prerequisites while planning and rejects a missing full test entrypoint before scenes
+  reviewer.prerequisites.empty:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects empty suites and filtered test entrypoints before native scene execution
+  reviewer.prerequisites.mutation:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects a candidate mutation performed by a passing full suite and retains exact prerequisite custody
+  reviewer.prerequisites.deduplicate:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: deduplicates prerequisite suites across dependent guarantees only within the same invocation
+  reviewer.prerequisites.owners:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks every scene when a different participating owner has failing prerequisites
+  reviewer.prerequisites.custody:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects an escaped test config and missing Git custody without scene side effects
+  reviewer.prerequisites.source-mode:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: binds executable modes for tracked and untracked files even when Git ignores file modes
+  reviewer.prerequisites.source-permissions:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: binds readable access permissions and special mode bits without relying on Git executable state
+  reviewer.prerequisites.source-link:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: binds symlink identity and file kind even when both targets have identical readable bytes
+  reviewer.prerequisites.source-unsafe:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: rejects escaped broken cyclic directory and unreadable source instead of claiming byte custody
+  reviewer.prerequisites.suite-mode:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: blocks a zero-exit complete suite that changes executable source mode without changing bytes
+  reviewer.prerequisites.scene-link:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects native scene symlink retargeting between equal-byte sources before the next scene
+  reviewer.prerequisites.source-escaped:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects escaped source in a bounded native process before any full-suite side effect
+  reviewer.prerequisites.source-fifo:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: rejects fifo source in a bounded native process before any full-suite side effect
   reviewer.workplan.package-local:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
-    testFile: test/workplan-packaging.test.ts
+    testFile: tests/contract/workplan-packaging.test.ts
+    testName: writes directives, evidence manifest, context, and agent brief
     description: Package-local verifier proves a reviewed guarantee run can be converted into a workplan with copied evidence and an agent brief.
   reviewer.evidence.rejects-outside-workspace:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
-    testFile: test/route-contracts.test.ts
+    testFile: tests/contract/route-contracts.test.ts
     testName: rejects evidence paths outside the workspace
     description: Evidence access rejects paths outside the local workspace boundary.

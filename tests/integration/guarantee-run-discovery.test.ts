@@ -3,10 +3,10 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { commandArgsForGuarantees, discoverGuaranteeRuns, loadGuaranteeReviewRun } from '../src/server/guarantee-runs.ts';
-import type { TreeseedGuaranteeRunReport } from '@treeseed/sdk/guarantees';
+import { commandArgsForGuarantees, discoverGuaranteeRuns, loadGuaranteeReviewRun } from '../../src/server/guarantee-runs.ts';
+import type { GuaranteeRunReport } from '@treeseed/sdk/guarantees';
 
-function fixtureReport(overrides: Partial<TreeseedGuaranteeRunReport> = {}): TreeseedGuaranteeRunReport {
+function fixtureReport(overrides: Partial<GuaranteeRunReport> = {}): GuaranteeRunReport {
   return {
     ok: false,
     runId: 'run-a',
@@ -218,9 +218,10 @@ describe('guarantee run discovery', () => {
       evidenceTarget: 'local',
     });
     expect(args).toContain('--no-dependencies');
-    expect(args).toContain('--include-planned');
+    expect(args).toContain('--statuses');
     expect(args).toContain('--scene-artifacts');
     expect(args).toContain('full');
-    expect(args.filter((entry) => entry === '--id')).toHaveLength(2);
+    expect(args).toContain('--ids');
+    expect(args).toContain('a,b');
   });
 });
