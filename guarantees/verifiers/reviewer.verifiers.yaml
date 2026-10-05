@@ -1,6 +1,16 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.selected-output-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantee-command.test.ts
+    testName: uses only the selected native report destination and denies missing malformed failed or foreign evidence despite passing stdout
+  reviewer.prerequisites.selected-output-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: reads exact selected native Vitest report bytes despite child output and retains actual failed selections
   reviewer.prerequisites.native-output:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
