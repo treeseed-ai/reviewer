@@ -211,6 +211,21 @@ describe('package-owned guarantee execution', () => {
 		expect(report.results[0]?.evidence[1]).toContain('prerequisite-');
 		expect(() => runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'regression')).toThrow('immutable');
 	});
+	it('uses only the selected native report destination and denies missing malformed failed or foreign evidence despite passing stdout', () => {
+		const valid = {success:true,numPassedTests:1,numFailedTests:0,testResults:[{assertionResults:[{title:'proves the boundary',status:'passed',duration:1}]}]};
+		for (const mode of ['valid','missing','malformed','failed','foreign']) {
+			const root = fixture();
+			const supplied = mode === 'malformed' ? '{' : JSON.stringify(mode === 'failed' ? {...valid,success:false,numFailedTests:1} :
+				mode === 'foreign' ? {...valid,testResults:[{assertionResults:[{title:'foreign boundary',status:'passed',duration:1}]}]} : valid);
+			const source = `const destination=process.argv.find(value=>value.startsWith('--outputFile='))?.slice('--outputFile='.length);
+				if(destination && ${mode !== 'missing'})(await import('node:fs')).writeFileSync(destination,${JSON.stringify(supplied)});
+				process.stdout.write(${JSON.stringify(mode === 'valid' ? '[{"filename":"native-runtime.tgz"}]\n' : JSON.stringify(valid))});`;
+			writeFileSync(resolve(root,'node_modules/vitest/vitest.mjs'),caseProgram(source));
+			const report = runLocalGuarantees(root,planLocalGuarantees(root,['proof']),`selected-${mode}`);
+			expect(report.ok).toBe(mode === 'valid');
+			expect(readFileSync(resolve(root,'node_modules/vitest/vitest.mjs'),'utf8')).toBe(caseProgram(source));
+		}
+	});
 	it('blocks the whole run on unresolved dependencies', () => {
 		const root = fixture();
 		writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), 'id: proof\ndependencies: { guarantees: [absent] }\napi: { verifierRefs: [proof.check] }');

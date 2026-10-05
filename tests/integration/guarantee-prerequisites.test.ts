@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { appendFileSync, chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -63,6 +63,33 @@ it('uses complete native Vitest report bytes despite child stdout without admitt
 		expect(order.filter(value => value === 'unit')).toHaveLength(2);
 		expect(order.filter(value => value === 'integration')).toHaveLength(2);
 		expect(order.filter(value => value === 'scene')).toHaveLength(failing ? 0 : 2);
+	}
+});
+
+it('reads exact selected native Vitest report bytes despite child output and retains actual failed selections', () => {
+	for (const failing of [false, true]) {
+		const root = fixture();
+		// Keep the native launcher inside its owning fixture; imports still use the actual installed Vitest.
+		unlinkSync(resolve(root, 'node_modules/vitest')); mkdirSync(resolve(root, 'node_modules/vitest'));
+		cpSync(resolve(import.meta.dirname, '../../node_modules/vitest/vitest.mjs'), resolve(root, 'node_modules/vitest/vitest.mjs'));
+		symlinkSync(resolve(import.meta.dirname, '../../node_modules/vitest/dist'), resolve(root, 'node_modules/vitest/dist'));
+		appendFileSync(resolve(root, 'tests/integration.test.ts'), `\nimport {execFileSync} from 'node:child_process'; import {readFileSync,existsSync,writeFileSync} from 'node:fs'; it('selected native output',()=>{const path='.treeseed/selected-count';const count=existsSync(path)?Number(readFileSync(path,'utf8')):0;appendFileSync('.treeseed/selected-observations',String(count+1)+'\\n');writeFileSync(path,String(count+1));execFileSync(process.execPath,['-e',${JSON.stringify("process.stdout.write('[{\"filename\":\"native-runtime.tgz\"}]\\n');")}],{stdio:'inherit'});expect(${failing} && (count+1)%2===0).toBe(false);});\n`);
+		writeFileSync(resolve(root, 'guarantees/proof.verifiers.yaml'), 'verifiers:\n  proof.scene: {kind: vitestCase, ownerPackage: fixture, testFile: tests/integration.test.ts, testName: selected native output}\n');
+		const before = candidate(root), plan = planLocalGuarantees(root, ['proof']);
+		for (const runId of ['first', 'fresh']) {
+			const report = runLocalGuarantees(root, plan, `selected-output-${failing}-${runId}`);
+			expect(report.ok).toBe(!failing);
+			const output = resolve(root, `.treeseed/guarantees/runs/selected-output-${failing}-${runId}`);
+			const prerequisite = JSON.parse(readFileSync(resolve(output, report.results[0]!.evidence.at(-1)!), 'utf8'));
+			expect(prerequisite).toMatchObject({...before, passed: true, exitCode: 0,
+				checks: {total: 3, passed: 3, failed: 0, skipped: 0, todo: 0}});
+			const evidence = JSON.parse(readFileSync(resolve(output, report.results[0]!.evidence[0]!), 'utf8'));
+			expect(evidence).toMatchObject({verifierId: 'proof.scene', testName: 'selected native output',
+				passed: !failing, exitCode: failing ? 1 : 0, signal: null,
+				checks: [{title: 'selected native output', status: failing ? 'failed' : 'passed'}]});
+			expect(candidate(root)).toEqual(before);
+		}
+		expect(readFileSync(resolve(root, '.treeseed/selected-observations'), 'utf8')).toBe('1\n2\n3\n4\n');
 	}
 });
 
