@@ -9,7 +9,11 @@ const roots: string[] = [];
 const fullSuiteReport = {success:true,numTotalTests:2,numPassedTests:2,numFailedTests:0,numPendingTests:0,numTodoTests:0,
 	numFailedTestSuites:0,numPendingTestSuites:0,testResults:[{assertionResults:[
 		{title:'unit prerequisite',status:'passed',duration:1},{title:'integration prerequisite',status:'passed',duration:1}]}]};
-const caseProgram = (source: string) => `if(!process.argv.includes('-t'))process.stdout.write(${JSON.stringify(JSON.stringify(fullSuiteReport))});else{${source}}`;
+const caseProgram = (source: string) => `if(!process.argv.includes('-t')){
+	const destination=process.argv.find(value=>value.startsWith('--outputFile='))?.slice('--outputFile='.length);
+	if(!destination)throw new Error('Unit fixture requires the native prerequisite report destination.');
+	(await import('node:fs')).writeFileSync(destination,${JSON.stringify(JSON.stringify(fullSuiteReport))});
+}else{${source}}`;
 function fixture() {
 	const root = mkdtempSync(resolve(tmpdir(), 'treeseed-guarantee-tests-'));
 	roots.push(root);
