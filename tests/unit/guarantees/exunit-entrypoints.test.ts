@@ -41,3 +41,34 @@ it('retains only controlled prerequisite failure criteria without copying stack 
 	]);
 	expect(JSON.stringify(fullSuiteFailures(evidence))).not.toContain('private');
 });
+
+it('retains unknown framework failure causes without inventing criteria or leaking duration stacks or assertion values',()=>{
+	for (const milliseconds of [25, 5_000, 30_000]) {
+		const evidence = { testResults: [{ assertionResults: [{ title: 'native execution', status: 'failed',
+			failureMessages: [`Error: Test timed out in ${milliseconds}ms.\nprivate stack and secret value`] }] }] };
+		expect(fullSuiteFailures(evidence)).toEqual([{ title: 'native execution', status: 'failed' }]);
+		expect(JSON.stringify(fullSuiteFailures(evidence))).not.toContain('private');
+	}
+	for (const message of ['Error: STACK_TRACE_ERROR\nprivate stack', 'Error: private timeout token', 'Error: Test timed out in secretms.',
+		'AssertionError: expected secret Test timed out in 25ms.', 'prefix\nError: Test timed out in 25ms.',
+		'Error: Test timed out in 25ms. token=secret']) {
+		expect(fullSuiteFailures({ testResults: [{ assertionResults: [{ title: 'failed', status: 'failed', failureMessages: [message] }] }] }))
+			.toEqual([{ title: 'failed', status: 'failed' }]);
+	}
+});
+
+it('retains the first controlled criterion from later native failure messages without copying private causes or mutating observations',()=>{
+	const evidence={testResults:[{assertionResults:[
+		{title:'native phase',status:'failed',failureMessages:['Error: private original cause',
+			'Error: ACCEPTANCE_NATIVE_PHASE_COMPILE: private hook cause\nprivate stack',
+			'Error: ACCEPTANCE_NATIVE_PHASE_CLOSE: private later cause']},
+		{title:'uncontrolled',status:'failed',failureMessages:[null,'private prefix ACCEPTANCE_NATIVE_PHASE_COMPILE:',
+			'prefix\nError: ACCEPTANCE_NATIVE_PHASE_COMPILE: private stack']},
+		{title:'passed',status:'passed',failureMessages:['Error: ACCEPTANCE_NATIVE_PHASE_COMPILE: private hook cause']}
+	]}]}, held=structuredClone(evidence);
+	expect(fullSuiteFailures(evidence)).toEqual([
+		{title:'native phase',status:'failed',criterion:'ACCEPTANCE_NATIVE_PHASE_COMPILE'},
+		{title:'uncontrolled',status:'failed'}
+	]);
+	expect(evidence).toEqual(held); expect(JSON.stringify(fullSuiteFailures(evidence))).not.toContain('private');
+});

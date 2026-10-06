@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
@@ -178,9 +179,12 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 		const sourceDigest = createHash('sha256').update(readFileSync(inside(binding.root, testFile))).digest('hex');
 		const testCommand = ownerTestCommand(binding.root);
 		const config = /--config\s+(\S+)/.exec(testCommand)?.[1];
+		const temporary = binding.definition.kind === 'vitestCase' ? mkdtempSync(resolve(tmpdir(), 'guarantee-selected-report-')) : undefined;
+		try {
+		const destination = temporary ? resolve(temporary, 'report.json') : undefined;
 		const args = binding.definition.kind === 'vitestCase'
 			? [inside(binding.root, 'node_modules/vitest/vitest.mjs'), 'run', ...(config ? ['--config', inside(binding.root, config)] : []), testFile,
-				'-t', `^.*${testName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, '--reporter=json']
+				'-t', `^.*${testName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, '--reporter=json', `--outputFile=${destination}`]
 			: [...(import.meta.url.endsWith('.ts') ? ['--import', createRequire(import.meta.url).resolve('tsx')] : []),
 				fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`, import.meta.url)), inside(binding.root, testFile), testName];
 		const timeoutMs = verifierTimeout(Reflect.get(binding.definition, 'timeoutMs'));
@@ -188,7 +192,8 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 		let passed = false;
 		let observed: Array<{ title: string; status: string; duration: number; failure?: unknown }> = [];
 		try {
-			const report = JSON.parse(result.stdout) as { success: boolean; numPassedTests: number; numFailedTests: number;
+			// Child operations may inherit stdout; only Vitest's own report is assertion evidence.
+			const report = JSON.parse(destination ? readFileSync(destination, 'utf8') : result.stdout) as { success: boolean; numPassedTests: number; numFailedTests: number;
 				testResults: Array<{ assertionResults: Array<{ title: string; status: string; duration?: number; failure?: unknown }> }> };
 			observed = report.testResults.flatMap(file => file.assertionResults).filter(check => check.title === testName)
 				.map(check => ({ title: check.title, status: check.status, duration: check.duration ?? Number.NaN,
@@ -204,6 +209,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 			exitCode: result.status, signal: result.signal, passed, checks: observed, diagnostics: afterCustodyErrors }, null, 2));
 		checks.set(ref, { status: passed ? 'passed' : 'failed', evidence: [relative(output, reportPath)], diagnostics: passed ? [] : [diagnostic('Exact coded verifier did not pass.'), ...afterCustodyErrors] });
 		if (!passed && entry.sceneVerifierRefs?.includes(ref)) failedSceneStep = true;
+		} finally { if (temporary) rmSync(temporary, { recursive: true, force: true }); }
 		}
 		if (entry.verifierRefs.every(ref => checks.get(ref)?.status === 'passed')) passedGuarantees.add(entry.id);
 	}

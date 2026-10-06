@@ -68,24 +68,44 @@ export function fullSuiteFailures(value: unknown) {
 		const assertions=row(file).assertionResults;
 		return Array.isArray(assertions) ? assertions.filter(value=>row(value).status!=='passed').map(value=>{
 			const assertion=row(value), messages=assertion.failureMessages;
-			const criterion=Array.isArray(messages)&&typeof messages[0]==='string'?failureCriterion(messages[0]):undefined;
+			const criterion=Array.isArray(messages)?messages.flatMap(message=>
+				typeof message==='string' ? failureCriterion(message) ?? [] : []).at(0):undefined;
 			return {title:assertion.title,status:assertion.status,...(criterion?{criterion}:{})};
 		}) : [];
 	}) : [];
 }
 
 export function candidate(root: string) {
-	const top = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' });
-	if (top.status !== 0 || realpathSync(top.stdout.trim()) !== realpathSync(root))
+	const top = spawnSync('git', ['rev-parse', '--show-toplevel', '--absolute-git-dir'], { cwd: root, encoding: 'utf8' });
+	const [worktree, directory] = top.stdout.trim().split(/\r?\n/u);
+	const own = spawnSync('git', ['rev-parse', '--resolve-git-dir', resolve(root, '.git')], { cwd: root, encoding: 'utf8' });
+	if (top.status !== 0 || !worktree || !directory || own.status !== 0
+		|| realpathSync(worktree) !== realpathSync(root) || realpathSync(directory) !== realpathSync(own.stdout.trim()))
 		throw new Error('Full prerequisite suite requires its own exact Git source root.');
 	const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: root, encoding: 'utf8' });
 	const files = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' });
-	if (head.status !== 0 || files.status !== 0) throw new Error('Full prerequisite suite requires exact Git candidate custody.');
+	const index = spawnSync('git', ['ls-files', '--stage', '-z'], { cwd: root, encoding: 'utf8' });
+	if (head.status !== 0 || files.status !== 0 || index.status !== 0) throw new Error('Full prerequisite suite requires exact Git candidate custody.');
+	const gitlinks = new Map<string,string>();
+	for (const entry of index.stdout.split('\0').filter(Boolean)) {
+		const match=/^160000 ([a-f0-9]{40,64}) ([0-3])\t([\s\S]+)$/u.exec(entry);
+		if (!match) continue;
+		if (match[2] !== '0' || gitlinks.has(match[3]!)) throw new Error('Full prerequisite submodule pin is unresolved.');
+		gitlinks.set(match[3]!,match[1]!);
+	}
 	const digest = createHash('sha256'), canonicalRoot=realpathSync(root);
 	for (const path of [...new Set(files.stdout.split('\0').filter(Boolean))].sort()) {
 		const source=resolve(canonicalRoot,path), metadata=lstatSync(source);
 		const link=metadata.isSymbolicLink()?readlinkSync(source):null, actual=realpathSync(source), local=relative(canonicalRoot,actual);
 		if(local==='..'||local.startsWith(`..${sep}`)||local.startsWith(sep))throw new Error('Full prerequisite source escapes its owner.');
+		const pin=gitlinks.get(path);
+		if (pin) {
+			if (metadata.isSymbolicLink()) throw new Error('Full prerequisite submodule root must not be redirected.');
+			const nested=candidate(actual);
+			if (nested.commit !== pin) throw new Error('Full prerequisite submodule HEAD differs from its exact Gitlink pin.');
+			digest.update(JSON.stringify([path,'160000',pin,nested.sourceDigest])).update('\0');
+			continue;
+		}
 		const target=lstatSync(actual);
 		if(!target.isFile()||(target.mode&0o444)===0)throw new Error('Full prerequisite source requires readable regular bytes.');
 		const descriptor=openSync(actual,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
@@ -201,10 +221,13 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 				status = result.status; signal = result.signal;
 				report = JSON.parse(result.stdout);
 			} else if (!native) {
-				command = [process.execPath,realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', ...(config ? ['--config', config] : []), '--reporter=json'];
+				// Native child tools may inherit stdout; consume only Vitest's own report file.
+				temporary = mkdtempSync(resolve(tmpdir(),'guarantee-vitest-suite-'));
+				const destination = resolve(temporary,'report.json');
+				command = [process.execPath,realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', ...(config ? ['--config', config] : []), '--reporter=json', `--outputFile=${destination}`];
 				result = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 1_200_000, maxBuffer: 32 * 1024 * 1024 });
 				status = result.status; signal = result.signal;
-				report = JSON.parse(result.stdout);
+				report = JSON.parse(readFileSync(destination,'utf8'));
 			} else {
 				// Preserve the declared npm entrypoint, including its original build and runner.
 				reporter = realpathSync(fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`,import.meta.url)));

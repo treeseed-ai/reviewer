@@ -26,6 +26,41 @@ verifiers:
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/integration/guarantee-run-discovery.test.ts
     testName: packaged Reviewer retains a real failed whole-suite observation and admits only a fresh complete exact-specification retry
+  reviewer.prerequisites.later-failure-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: retains the first controlled criterion from later native failure messages without copying private causes or mutating observations
+  reviewer.prerequisites.later-failure-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains the actual later native failure hook criterion before blocking scenes and preserves failed evidence after unchanged-source retry
+  reviewer.prerequisites.submodule-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: binds initialized Gitlink commits and nested source bytes while denying absent moved or escaped submodules
+  reviewer.prerequisites.submodule-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: requires exact initialized submodule custody before complete native prerequisites and retains mutation failure before fresh retry
+  reviewer.prerequisites.selected-output-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantee-command.test.ts
+    testName: uses only the selected native report destination and denies missing malformed failed or foreign evidence despite passing stdout
+  reviewer.prerequisites.selected-output-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: reads exact selected native Vitest report bytes despite child output and retains actual failed selections
+  reviewer.prerequisites.native-output:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: uses complete native Vitest report bytes despite child stdout without admitting failed suites
   reviewer.prerequisites.failure-criterion:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
@@ -36,6 +71,16 @@ verifiers:
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/integration/guarantee-prerequisites.test.ts
     testName: retains a real full-suite controlled failure stage without copying native failure prose
+  reviewer.prerequisites.framework-watchdog-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: retains unknown framework failure causes without inventing criteria or leaking duration stacks or assertion values
+  reviewer.prerequisites.framework-watchdog-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains a real Vitest watchdog denial before any scene and keeps failed receipt bytes after a fresh complete unchanged-source retry
   reviewer.prerequisites.exunit-declaration:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"

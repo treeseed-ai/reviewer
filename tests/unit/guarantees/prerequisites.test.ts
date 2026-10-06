@@ -60,6 +60,11 @@ it('compares both exact HEAD and source bytes without disclosing source contents
 it('rejects missing candidate custody without throwing or substituting an old receipt', () => {
 	const root = mkdtempSync(resolve(tmpdir(),'prerequisite-no-git-')); roots.push(root);
 	expect(custodyDiagnostics(new Map([[root,{commit:'0'.repeat(40),sourceDigest:'0'.repeat(64)}]]))).toHaveLength(1);
+	const donor=sourceFixture(), owned=sourceFixture(), before={GIT_DIR:process.env.GIT_DIR,GIT_WORK_TREE:process.env.GIT_WORK_TREE};
+	writeFileSync(resolve(root,'first.ts'),'same private bytes'); writeFileSync(resolve(root,'second.ts'),'same private bytes');
+	process.env.GIT_DIR=resolve(donor,'.git');
+	try { const observed=[root,owned].map(target=>{process.env.GIT_WORK_TREE=target;try {candidate(target);return true;}catch{return false;}}); expect(observed).toEqual([false,false]); }
+	finally { for(const key of ['GIT_DIR','GIT_WORK_TREE'] as const) { if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key]; } }
 });
 
 function sourceFixture() {
@@ -69,6 +74,28 @@ function sourceFixture() {
 		expect(spawnSync('git',args,{cwd:root}).status).toBe(0);
 	return root;
 }
+
+it('binds initialized Gitlink commits and nested source bytes while denying absent moved or escaped submodules',()=>{
+	const root=sourceFixture(), dependency=sourceFixture(), nested=resolve(root,'dependency');
+	const git=(cwd:string,...args:string[])=>spawnSync('git',args,{cwd,encoding:'utf8'});
+	expect(git(root,'-c','protocol.file.allow=always','submodule','add',dependency,'dependency').status).toBe(0);
+	expect(git(root,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qam','Pinned dependency').status).toBe(0);
+	const before=candidate(root), pin=git(nested,'rev-parse','HEAD').stdout.trim();
+	expect(candidate(root)).toEqual(before);
+	writeFileSync(resolve(nested,'first.ts'),'changed private dependency');
+	expect(candidate(root).sourceDigest).not.toBe(before.sourceDigest);
+	expect(custodyDiagnostics(new Map([[root,before]]))).toHaveLength(1);
+	writeFileSync(resolve(nested,'first.ts'),'same private bytes');
+	expect(candidate(root)).toEqual(before);
+	expect(git(nested,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--allow-empty','-qm','Moved').status).toBe(0);
+	expect(()=>candidate(root)).toThrow();
+	expect(git(nested,'switch','--detach',pin).status).toBe(0);
+	expect(candidate(root)).toEqual(before);
+	rmSync(nested,{recursive:true,force:true});mkdirSync(nested);
+	expect(()=>candidate(root)).toThrow();
+	rmSync(nested,{recursive:true,force:true});symlinkSync(dependency,nested,'dir');
+	expect(()=>candidate(root)).toThrow();
+});
 
 it('binds executable modes for tracked and untracked files even when Git ignores file modes',()=>{
 	for(const name of ['first.ts','untracked.ts']) {

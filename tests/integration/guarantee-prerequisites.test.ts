@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { appendFileSync, chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -38,12 +38,92 @@ it('runs every owning unit and integration assertion before any scene and repeat
 	}
 });
 
+it('requires exact initialized submodule custody before complete native prerequisites and retains mutation failure before fresh retry',()=>{
+	const root=fixture(), dependency=mkdtempSync(resolve(tmpdir(),'guarantee-pinned-dependency-'));roots.push(dependency);
+	writeFileSync(resolve(dependency,'source.ts'),'exact dependency bytes');
+	const git=(cwd:string,...args:string[])=>spawnSync('git',args,{cwd,encoding:'utf8'});
+	for(const args of [['init','-q'],['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Dependency']])
+		expect(git(dependency,...args).status).toBe(0);
+	expect(git(root,'-c','protocol.file.allow=always','submodule','add',dependency,'dependency').status).toBe(0);
+	expect(git(root,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qam','Pin dependency').status).toBe(0);
+	const nested=resolve(root,'dependency'), pin=git(nested,'rev-parse','HEAD').stdout.trim(), before=candidate(root);
+	const plan=planLocalGuarantees(root,['proof']);
+	expect(runLocalGuarantees(root,plan,'submodule-first').ok).toBe(true);
+	const first=readFileSync(resolve(root,'.treeseed/guarantees/runs/submodule-first/report.json'));
+	expect(git(nested,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--allow-empty','-qm','Unpinned').status).toBe(0);
+	const order=readFileSync(resolve(root,'.treeseed/order'),'utf8');
+	const denied=runLocalGuarantees(root,plan,'submodule-denied');expect(denied.ok).toBe(false);
+	expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).toBe(order);
+	const failed=readFileSync(resolve(root,'.treeseed/guarantees/runs/submodule-denied/report.json'));
+	expect(git(nested,'switch','--detach',pin).status).toBe(0);
+	writeFileSync(resolve(root,'scene.ts'),"import test from 'node:test'; import {writeFileSync} from 'node:fs'; test('scene boundary',()=>{writeFileSync('dependency/source.ts','scene mutation');});");
+	const mutated=runLocalGuarantees(root,plan,'submodule-mutated');expect(mutated.ok).toBe(false);
+	expect(mutated.results[0]!.steps[0]!.status).toBe('failed');
+	const mutation=readFileSync(resolve(root,'.treeseed/guarantees/runs/submodule-mutated/report.json'));
+	writeFileSync(resolve(nested,'source.ts'),'exact dependency bytes');
+	writeFileSync(resolve(root,'scene.ts'),"import test from 'node:test'; import {appendFileSync} from 'node:fs'; test('scene boundary',()=>{appendFileSync('.treeseed/order','scene\\n');});");
+	expect(candidate(root)).toEqual(before);
+	const retry=runLocalGuarantees(root,plan,'submodule-retry');expect(retry.ok).toBe(true);
+	const output=resolve(root,'.treeseed/guarantees/runs/submodule-retry');
+	expect(JSON.parse(readFileSync(resolve(output,retry.results[0]!.evidence.at(-1)!),'utf8'))).toMatchObject({...before,passed:true,checks:{total:2,passed:2,failed:0,skipped:0,todo:0}});
+	for(const [run,bytes] of [['submodule-first',first],['submodule-denied',failed],['submodule-mutated',mutation]] as const)
+		expect(readFileSync(resolve(root,`.treeseed/guarantees/runs/${run}/report.json`))).toEqual(bytes);
+	expect(candidate(root)).toEqual(before);
+});
+
 it('blocks native scene side effects when an unselected unit test fails', () => {
 	const root = fixture(true); const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'unit-red');
 	expect(report.ok).toBe(false);
 	expect(readFileSync(resolve(root, '.treeseed/order'), 'utf8')).not.toContain('scene');
 	expect(report.diagnostics).toBeDefined();
 	expect(report.diagnostics!.map(item => item.message).join(' ')).toContain('prerequisite');
+});
+
+it('uses complete native Vitest report bytes despite child stdout without admitting failed suites', () => {
+	for (const failing of [false, true]) {
+		const root = fixture(failing);
+		appendFileSync(resolve(root, 'tests/integration.test.ts'), `\nimport {execFileSync} from 'node:child_process'; it('native operation output',()=>{execFileSync(process.execPath,['-e',${JSON.stringify("process.stdout.write('[{\"filename\":\"native-runtime.tgz\"}]\\n');") }],{stdio:'inherit'});});\n`);
+		const before = candidate(root), plan = planLocalGuarantees(root, ['proof']);
+		for (const runId of ['first', 'fresh']) {
+			const report = runLocalGuarantees(root, plan, `native-output-${failing}-${runId}`);
+			expect(report.ok).toBe(!failing);
+			const receipt = JSON.parse(readFileSync(resolve(root, `.treeseed/guarantees/runs/native-output-${failing}-${runId}`, report.results[0]!.evidence.at(-1)!), 'utf8'));
+			expect(receipt).toMatchObject({ ...before, passed: !failing, exitCode: failing ? 1 : 0, signal: null,
+				checks: { total: 3, passed: failing ? 2 : 3, failed: failing ? 1 : 0, skipped: 0, todo: 0 } });
+			expect(candidate(root)).toEqual(before);
+		}
+		const order = readFileSync(resolve(root, '.treeseed/order'), 'utf8').trim().split('\n');
+		expect(order.filter(value => value === 'unit')).toHaveLength(2);
+		expect(order.filter(value => value === 'integration')).toHaveLength(2);
+		expect(order.filter(value => value === 'scene')).toHaveLength(failing ? 0 : 2);
+	}
+});
+
+it('reads exact selected native Vitest report bytes despite child output and retains actual failed selections', () => {
+	for (const failing of [false, true]) {
+		const root = fixture();
+		// Keep the native launcher inside its owning fixture; imports still use the actual installed Vitest.
+		unlinkSync(resolve(root, 'node_modules/vitest')); mkdirSync(resolve(root, 'node_modules/vitest'));
+		cpSync(resolve(import.meta.dirname, '../../node_modules/vitest/vitest.mjs'), resolve(root, 'node_modules/vitest/vitest.mjs'));
+		symlinkSync(resolve(import.meta.dirname, '../../node_modules/vitest/dist'), resolve(root, 'node_modules/vitest/dist'));
+		appendFileSync(resolve(root, 'tests/integration.test.ts'), `\nimport {execFileSync} from 'node:child_process'; import {readFileSync,existsSync,writeFileSync} from 'node:fs'; it('selected native output',()=>{const path='.treeseed/selected-count';const count=existsSync(path)?Number(readFileSync(path,'utf8')):0;appendFileSync('.treeseed/selected-observations',String(count+1)+'\\n');writeFileSync(path,String(count+1));execFileSync(process.execPath,['-e',${JSON.stringify("process.stdout.write('[{\"filename\":\"native-runtime.tgz\"}]\\n');")}],{stdio:'inherit'});expect(${failing} && (count+1)%2===0).toBe(false);});\n`);
+		writeFileSync(resolve(root, 'guarantees/proof.verifiers.yaml'), 'verifiers:\n  proof.scene: {kind: vitestCase, ownerPackage: fixture, testFile: tests/integration.test.ts, testName: selected native output}\n');
+		const before = candidate(root), plan = planLocalGuarantees(root, ['proof']);
+		for (const runId of ['first', 'fresh']) {
+			const report = runLocalGuarantees(root, plan, `selected-output-${failing}-${runId}`);
+			expect(report.ok).toBe(!failing);
+			const output = resolve(root, `.treeseed/guarantees/runs/selected-output-${failing}-${runId}`);
+			const prerequisite = JSON.parse(readFileSync(resolve(output, report.results[0]!.evidence.at(-1)!), 'utf8'));
+			expect(prerequisite).toMatchObject({...before, passed: true, exitCode: 0,
+				checks: {total: 3, passed: 3, failed: 0, skipped: 0, todo: 0}});
+			const evidence = JSON.parse(readFileSync(resolve(output, report.results[0]!.evidence[0]!), 'utf8'));
+			expect(evidence).toMatchObject({verifierId: 'proof.scene', testName: 'selected native output',
+				passed: !failing, exitCode: failing ? 1 : 0, signal: null,
+				checks: [{title: 'selected native output', status: failing ? 'failed' : 'passed'}]});
+			expect(candidate(root)).toEqual(before);
+		}
+		expect(readFileSync(resolve(root, '.treeseed/selected-observations'), 'utf8')).toBe('1\n2\n3\n4\n');
+	}
 });
 
 it('blocks acceptance when the complete integration suite contains a skipped assertion', () => {
@@ -101,14 +181,14 @@ it('blocks every scene when a different participating owner has failing prerequi
 });
 
 it('rejects an escaped test config and missing Git custody without scene side effects', () => {
-	for (const mode of ['escaped','missing-git']) {
+	for (const mode of ['escaped','missing-git','foreign-env','foreign-owned-env']) {
 		const root = fixture();
-		if (mode === 'missing-git') rmSync(resolve(root,'.git'),{recursive:true,force:true});
-		else { const other = fixture(); symlinkSync(resolve(other,'vitest.config.ts'),resolve(root,'outside.config.ts'));
+		if (mode === 'missing-git'||mode === 'foreign-env') rmSync(resolve(root,'.git'),{recursive:true,force:true});
+		else if(mode==='escaped') { const other = fixture(); symlinkSync(resolve(other,'vitest.config.ts'),resolve(root,'outside.config.ts'));
 			writeFileSync(resolve(root,'package.json'),JSON.stringify({scripts:{test:'vitest run --config outside.config.ts'}})); }
-		const stage=mode==='escaped'?'ESCAPED':'MISSING_GIT';
-		expect(runLocalGuarantees(root,planLocalGuarantees(root,['proof']),mode).ok,`ACCEPTANCE_PREREQUISITE_${stage}_DISPOSITION: custody must fail closed`).toBe(false);
-		expect(existsSync(resolve(root,'.treeseed/order')),`ACCEPTANCE_PREREQUISITE_${stage}_SIDE_EFFECT: no suite side effect`).toBe(false);
+		const stage=mode==='escaped'?'ESCAPED':'MISSING_GIT', before={GIT_DIR:process.env.GIT_DIR,GIT_WORK_TREE:process.env.GIT_WORK_TREE}; if(mode.startsWith('foreign-')) { process.env.GIT_DIR=resolve(fixture(),'.git'); process.env.GIT_WORK_TREE=root; }
+		try { expect(runLocalGuarantees(root,planLocalGuarantees(root,['proof']),mode).ok,`ACCEPTANCE_PREREQUISITE_${stage}_DISPOSITION: custody must fail closed`).toBe(false); expect(existsSync(resolve(root,'.treeseed/order')),`ACCEPTANCE_PREREQUISITE_${stage}_SIDE_EFFECT: no suite side effect`).toBe(false); }
+		finally { for(const key of ['GIT_DIR','GIT_WORK_TREE'] as const) { if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key]; } }
 	}
 });
 
@@ -121,6 +201,66 @@ it('retains a real full-suite controlled failure stage without copying native fa
 	expect(receipt.checks.failures).toEqual([{title:'controlled failure',status:'failed',criterion:'ACCEPTANCE_PREREQUISITE_FIXTURE'}]);
 	expect(JSON.stringify(receipt)).not.toContain('private native error');
 	expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
+});
+
+it('retains the actual later native failure hook criterion before blocking scenes and preserves failed evidence after unchanged-source retry',()=>{
+	const root=fixture(); appendFileSync(resolve(root,'tests/integration.test.ts'), "\nimport {onTestFailed} from 'vitest'; import {existsSync} from 'node:fs'; it('native controlled phase',()=>{onTestFailed(()=>{throw new Error('ACCEPTANCE_NATIVE_PHASE_COMPILE: private hook cause');});if(existsSync('.treeseed/fail-phase'))throw new Error('private original cause');});\n");
+	const held=candidate(root), source=readFileSync(resolve(root,'tests/integration.test.ts')); writeFileSync(resolve(root,'.treeseed/fail-phase'),'controlled failure input'); const rawPath=resolve(root,'.treeseed/native-phase.json');
+	const native=spawnSync(process.execPath,[resolve(root,'node_modules/vitest/vitest.mjs'),'run','--config',resolve(root,'vitest.config.ts'),'--reporter=json',`--outputFile=${rawPath}`],{cwd:root,encoding:'utf8'});
+	expect(native.status).toBe(1); const rawBytes=readFileSync(rawPath), raw=JSON.parse(rawBytes.toString('utf8'));
+	const failed=raw.testResults.flatMap((file:{assertionResults:Array<{title:string;failureMessages:string[]}>})=>file.assertionResults).find((assertion:{title:string})=>assertion.title==='native controlled phase');
+	expect(failed.status).toBe('failed'); expect(failed.failureMessages.length).toBeGreaterThan(1);
+	expect(failed.failureMessages.some((message:string)=>message.startsWith('Error: ACCEPTANCE_NATIVE_PHASE_COMPILE:'))).toBe(true);
+	const plan=planLocalGuarantees(root,['proof']), denied=runLocalGuarantees(root,plan,'native-phase-denied'),
+		output=resolve(root,'.treeseed/guarantees/runs/native-phase-denied'), receiptPath=denied.results[0]!.evidence.at(-1)!;
+	const bytes=readFileSync(resolve(output,receiptPath)), receipt=JSON.parse(bytes.toString('utf8')); expect(denied.ok).toBe(false); expect(denied.counts.passed).toBe(0);
+	expect(receipt).toMatchObject({...held,passed:false,exitCode:1,signal:null,
+		checks:{total:3,passed:2,failed:1,skipped:0,todo:0,failures:[{title:'native controlled phase',status:'failed',criterion:'ACCEPTANCE_NATIVE_PHASE_COMPILE'}]}});
+	expect(JSON.stringify(receipt)).not.toContain('private'); expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
+	const reportBytes=readFileSync(resolve(output,'report.json')); unlinkSync(resolve(root,'.treeseed/fail-phase'));
+	const retry=runLocalGuarantees(root,plan,'native-phase-fresh'), retryRoot=resolve(root,'.treeseed/guarantees/runs/native-phase-fresh'); expect(retry.ok).toBe(true);
+	expect(JSON.parse(readFileSync(resolve(retryRoot,retry.results[0]!.evidence.at(-1)!),'utf8'))).toMatchObject({...held,passed:true,exitCode:0,checks:{total:3,passed:3,failed:0,skipped:0,todo:0}});
+	expect(readFileSync(resolve(output,receiptPath))).toEqual(bytes); expect(readFileSync(resolve(output,'report.json'))).toEqual(reportBytes);
+	expect(readFileSync(rawPath)).toEqual(rawBytes); expect(readFileSync(resolve(root,'tests/integration.test.ts'))).toEqual(source); expect(candidate(root)).toEqual(held); expect(readFileSync(resolve(root,'.treeseed/order'),'utf8').trim().split('\n').filter(value=>value==='scene')).toHaveLength(1);
+});
+
+it('retains a real Vitest watchdog denial before any scene and keeps failed receipt bytes after a fresh complete unchanged-source retry',()=>{
+	const root = fixture();
+	appendFileSync(resolve(root, 'tests/integration.test.ts'), "\nimport {existsSync} from 'node:fs'; it('native execution watchdog',async()=>{if(existsSync('.treeseed/stall')) await new Promise(()=>{});},25);\n");
+	const held = candidate(root), input = readFileSync(resolve(root, 'tests/integration.test.ts'));
+	writeFileSync(resolve(root, '.treeseed/stall'), 'controlled interrupted operation');
+	const rawPath = resolve(root, '.treeseed/watchdog-native.json');
+	const native = spawnSync(process.execPath, [resolve(root, 'node_modules/vitest/vitest.mjs'), 'run',
+		'--config', resolve(root, 'vitest.config.ts'), '--reporter=json', `--outputFile=${rawPath}`], { cwd: root, encoding: 'utf8' });
+	expect(native.status).toBe(1);
+	const rawBytes = readFileSync(rawPath), raw = JSON.parse(rawBytes.toString('utf8'));
+	const watchdog = raw.testResults.flatMap((file: { assertionResults: Array<{ title: string; failureMessages: string[] }> }) => file.assertionResults)
+		.find((assertion: { title: string }) => assertion.title === 'native execution watchdog');
+	// The installed framework prefers its captured stack over its timeout message.
+	// Neither that stack nor duration can supply a controlled acceptance criterion.
+	expect(watchdog.status).toBe('failed'); expect(watchdog.failureMessages).not.toHaveLength(0);
+	const plan = planLocalGuarantees(root, ['proof']), denied = runLocalGuarantees(root, plan, 'native-watchdog');
+	const output = resolve(root, '.treeseed/guarantees/runs/native-watchdog');
+	expect(denied.ok).toBe(false); expect(denied.counts.passed).toBe(0);
+	const receiptPath = denied.results[0]!.evidence.at(-1)!;
+	const bytes = readFileSync(resolve(output, receiptPath));
+	const failedReceipt = JSON.parse(bytes.toString('utf8'));
+	expect(failedReceipt, JSON.stringify(failedReceipt)).toMatchObject({ ...held, passed: false, exitCode: 1, signal: null,
+		checks: { total: 3, passed: 2, failed: 1, skipped: 0, todo: 0,
+			failures: [{ title: 'native execution watchdog', status: 'failed' }] } });
+	expect(failedReceipt.checks.failures[0]).not.toHaveProperty('criterion');
+	expect(readFileSync(resolve(root, '.treeseed/order'), 'utf8')).not.toContain('scene');
+	const reportBytes = readFileSync(resolve(output, 'report.json'));
+	unlinkSync(resolve(root, '.treeseed/stall'));
+	const retry = runLocalGuarantees(root, plan, 'fresh-native-watchdog-retry'); expect(retry.ok).toBe(true);
+	const retryRoot = resolve(root, '.treeseed/guarantees/runs/fresh-native-watchdog-retry');
+	expect(JSON.parse(readFileSync(resolve(retryRoot, retry.results[0]!.evidence.at(-1)!), 'utf8')))
+		.toMatchObject({ ...held, passed: true, exitCode: 0, checks: { total: 3, passed: 3, failed: 0, skipped: 0, todo: 0 } });
+	expect(readFileSync(resolve(output, receiptPath))).toEqual(bytes);
+	expect(readFileSync(resolve(output, 'report.json'))).toEqual(reportBytes);
+	expect(readFileSync(rawPath)).toEqual(rawBytes);
+	expect(readFileSync(resolve(root, 'tests/integration.test.ts'))).toEqual(input); expect(candidate(root)).toEqual(held);
+	expect(readFileSync(resolve(root, '.treeseed/order'), 'utf8').trim().split('\n').filter(value => value === 'scene')).toHaveLength(1);
 });
 
 it('blocks all scenes when a later owner suite changes an earlier tested candidate', () => {
