@@ -1,6 +1,16 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.later-failure-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: retains the first controlled criterion from later native failure messages without copying private causes or mutating observations
+  reviewer.prerequisites.later-failure-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains the actual later native failure hook criterion before blocking scenes and preserves failed evidence after unchanged-source retry
   reviewer.prerequisites.submodule-unit:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"

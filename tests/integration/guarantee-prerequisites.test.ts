@@ -181,14 +181,14 @@ it('blocks every scene when a different participating owner has failing prerequi
 });
 
 it('rejects an escaped test config and missing Git custody without scene side effects', () => {
-	for (const mode of ['escaped','missing-git']) {
+	for (const mode of ['escaped','missing-git','foreign-env','foreign-owned-env']) {
 		const root = fixture();
-		if (mode === 'missing-git') rmSync(resolve(root,'.git'),{recursive:true,force:true});
-		else { const other = fixture(); symlinkSync(resolve(other,'vitest.config.ts'),resolve(root,'outside.config.ts'));
+		if (mode === 'missing-git'||mode === 'foreign-env') rmSync(resolve(root,'.git'),{recursive:true,force:true});
+		else if(mode==='escaped') { const other = fixture(); symlinkSync(resolve(other,'vitest.config.ts'),resolve(root,'outside.config.ts'));
 			writeFileSync(resolve(root,'package.json'),JSON.stringify({scripts:{test:'vitest run --config outside.config.ts'}})); }
-		const stage=mode==='escaped'?'ESCAPED':'MISSING_GIT';
-		expect(runLocalGuarantees(root,planLocalGuarantees(root,['proof']),mode).ok,`ACCEPTANCE_PREREQUISITE_${stage}_DISPOSITION: custody must fail closed`).toBe(false);
-		expect(existsSync(resolve(root,'.treeseed/order')),`ACCEPTANCE_PREREQUISITE_${stage}_SIDE_EFFECT: no suite side effect`).toBe(false);
+		const stage=mode==='escaped'?'ESCAPED':'MISSING_GIT', before={GIT_DIR:process.env.GIT_DIR,GIT_WORK_TREE:process.env.GIT_WORK_TREE}; if(mode.startsWith('foreign-')) { process.env.GIT_DIR=resolve(fixture(),'.git'); process.env.GIT_WORK_TREE=root; }
+		try { expect(runLocalGuarantees(root,planLocalGuarantees(root,['proof']),mode).ok,`ACCEPTANCE_PREREQUISITE_${stage}_DISPOSITION: custody must fail closed`).toBe(false); expect(existsSync(resolve(root,'.treeseed/order')),`ACCEPTANCE_PREREQUISITE_${stage}_SIDE_EFFECT: no suite side effect`).toBe(false); }
+		finally { for(const key of ['GIT_DIR','GIT_WORK_TREE'] as const) { if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key]; } }
 	}
 });
 
@@ -201,6 +201,27 @@ it('retains a real full-suite controlled failure stage without copying native fa
 	expect(receipt.checks.failures).toEqual([{title:'controlled failure',status:'failed',criterion:'ACCEPTANCE_PREREQUISITE_FIXTURE'}]);
 	expect(JSON.stringify(receipt)).not.toContain('private native error');
 	expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
+});
+
+it('retains the actual later native failure hook criterion before blocking scenes and preserves failed evidence after unchanged-source retry',()=>{
+	const root=fixture(); appendFileSync(resolve(root,'tests/integration.test.ts'), "\nimport {onTestFailed} from 'vitest'; import {existsSync} from 'node:fs'; it('native controlled phase',()=>{onTestFailed(()=>{throw new Error('ACCEPTANCE_NATIVE_PHASE_COMPILE: private hook cause');});if(existsSync('.treeseed/fail-phase'))throw new Error('private original cause');});\n");
+	const held=candidate(root), source=readFileSync(resolve(root,'tests/integration.test.ts')); writeFileSync(resolve(root,'.treeseed/fail-phase'),'controlled failure input'); const rawPath=resolve(root,'.treeseed/native-phase.json');
+	const native=spawnSync(process.execPath,[resolve(root,'node_modules/vitest/vitest.mjs'),'run','--config',resolve(root,'vitest.config.ts'),'--reporter=json',`--outputFile=${rawPath}`],{cwd:root,encoding:'utf8'});
+	expect(native.status).toBe(1); const rawBytes=readFileSync(rawPath), raw=JSON.parse(rawBytes.toString('utf8'));
+	const failed=raw.testResults.flatMap((file:{assertionResults:Array<{title:string;failureMessages:string[]}>})=>file.assertionResults).find((assertion:{title:string})=>assertion.title==='native controlled phase');
+	expect(failed.status).toBe('failed'); expect(failed.failureMessages.length).toBeGreaterThan(1);
+	expect(failed.failureMessages.some((message:string)=>message.startsWith('Error: ACCEPTANCE_NATIVE_PHASE_COMPILE:'))).toBe(true);
+	const plan=planLocalGuarantees(root,['proof']), denied=runLocalGuarantees(root,plan,'native-phase-denied'),
+		output=resolve(root,'.treeseed/guarantees/runs/native-phase-denied'), receiptPath=denied.results[0]!.evidence.at(-1)!;
+	const bytes=readFileSync(resolve(output,receiptPath)), receipt=JSON.parse(bytes.toString('utf8')); expect(denied.ok).toBe(false); expect(denied.counts.passed).toBe(0);
+	expect(receipt).toMatchObject({...held,passed:false,exitCode:1,signal:null,
+		checks:{total:3,passed:2,failed:1,skipped:0,todo:0,failures:[{title:'native controlled phase',status:'failed',criterion:'ACCEPTANCE_NATIVE_PHASE_COMPILE'}]}});
+	expect(JSON.stringify(receipt)).not.toContain('private'); expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
+	const reportBytes=readFileSync(resolve(output,'report.json')); unlinkSync(resolve(root,'.treeseed/fail-phase'));
+	const retry=runLocalGuarantees(root,plan,'native-phase-fresh'), retryRoot=resolve(root,'.treeseed/guarantees/runs/native-phase-fresh'); expect(retry.ok).toBe(true);
+	expect(JSON.parse(readFileSync(resolve(retryRoot,retry.results[0]!.evidence.at(-1)!),'utf8'))).toMatchObject({...held,passed:true,exitCode:0,checks:{total:3,passed:3,failed:0,skipped:0,todo:0}});
+	expect(readFileSync(resolve(output,receiptPath))).toEqual(bytes); expect(readFileSync(resolve(output,'report.json'))).toEqual(reportBytes);
+	expect(readFileSync(rawPath)).toEqual(rawBytes); expect(readFileSync(resolve(root,'tests/integration.test.ts'))).toEqual(source); expect(candidate(root)).toEqual(held); expect(readFileSync(resolve(root,'.treeseed/order'),'utf8').trim().split('\n').filter(value=>value==='scene')).toHaveLength(1);
 });
 
 it('retains a real Vitest watchdog denial before any scene and keeps failed receipt bytes after a fresh complete unchanged-source retry',()=>{

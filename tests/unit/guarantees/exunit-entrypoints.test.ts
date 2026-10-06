@@ -56,3 +56,19 @@ it('retains unknown framework failure causes without inventing criteria or leaki
 			.toEqual([{ title: 'failed', status: 'failed' }]);
 	}
 });
+
+it('retains the first controlled criterion from later native failure messages without copying private causes or mutating observations',()=>{
+	const evidence={testResults:[{assertionResults:[
+		{title:'native phase',status:'failed',failureMessages:['Error: private original cause',
+			'Error: ACCEPTANCE_NATIVE_PHASE_COMPILE: private hook cause\nprivate stack',
+			'Error: ACCEPTANCE_NATIVE_PHASE_CLOSE: private later cause']},
+		{title:'uncontrolled',status:'failed',failureMessages:[null,'private prefix ACCEPTANCE_NATIVE_PHASE_COMPILE:',
+			'prefix\nError: ACCEPTANCE_NATIVE_PHASE_COMPILE: private stack']},
+		{title:'passed',status:'passed',failureMessages:['Error: ACCEPTANCE_NATIVE_PHASE_COMPILE: private hook cause']}
+	]}]}, held=structuredClone(evidence);
+	expect(fullSuiteFailures(evidence)).toEqual([
+		{title:'native phase',status:'failed',criterion:'ACCEPTANCE_NATIVE_PHASE_COMPILE'},
+		{title:'uncontrolled',status:'failed'}
+	]);
+	expect(evidence).toEqual(held); expect(JSON.stringify(fullSuiteFailures(evidence))).not.toContain('private');
+});
