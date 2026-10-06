@@ -80,12 +80,28 @@ export function candidate(root: string) {
 		throw new Error('Full prerequisite suite requires its own exact Git source root.');
 	const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: root, encoding: 'utf8' });
 	const files = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' });
-	if (head.status !== 0 || files.status !== 0) throw new Error('Full prerequisite suite requires exact Git candidate custody.');
+	const index = spawnSync('git', ['ls-files', '--stage', '-z'], { cwd: root, encoding: 'utf8' });
+	if (head.status !== 0 || files.status !== 0 || index.status !== 0) throw new Error('Full prerequisite suite requires exact Git candidate custody.');
+	const gitlinks = new Map<string,string>();
+	for (const entry of index.stdout.split('\0').filter(Boolean)) {
+		const match=/^160000 ([a-f0-9]{40,64}) ([0-3])\t([\s\S]+)$/u.exec(entry);
+		if (!match) continue;
+		if (match[2] !== '0' || gitlinks.has(match[3]!)) throw new Error('Full prerequisite submodule pin is unresolved.');
+		gitlinks.set(match[3]!,match[1]!);
+	}
 	const digest = createHash('sha256'), canonicalRoot=realpathSync(root);
 	for (const path of [...new Set(files.stdout.split('\0').filter(Boolean))].sort()) {
 		const source=resolve(canonicalRoot,path), metadata=lstatSync(source);
 		const link=metadata.isSymbolicLink()?readlinkSync(source):null, actual=realpathSync(source), local=relative(canonicalRoot,actual);
 		if(local==='..'||local.startsWith(`..${sep}`)||local.startsWith(sep))throw new Error('Full prerequisite source escapes its owner.');
+		const pin=gitlinks.get(path);
+		if (pin) {
+			if (metadata.isSymbolicLink()) throw new Error('Full prerequisite submodule root must not be redirected.');
+			const nested=candidate(actual);
+			if (nested.commit !== pin) throw new Error('Full prerequisite submodule HEAD differs from its exact Gitlink pin.');
+			digest.update(JSON.stringify([path,'160000',pin,nested.sourceDigest])).update('\0');
+			continue;
+		}
 		const target=lstatSync(actual);
 		if(!target.isFile()||(target.mode&0o444)===0)throw new Error('Full prerequisite source requires readable regular bytes.');
 		const descriptor=openSync(actual,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
