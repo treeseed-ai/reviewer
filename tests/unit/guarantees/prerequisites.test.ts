@@ -70,6 +70,28 @@ function sourceFixture() {
 	return root;
 }
 
+it('binds initialized Gitlink commits and nested source bytes while denying absent moved or escaped submodules',()=>{
+	const root=sourceFixture(), dependency=sourceFixture(), nested=resolve(root,'dependency');
+	const git=(cwd:string,...args:string[])=>spawnSync('git',args,{cwd,encoding:'utf8'});
+	expect(git(root,'-c','protocol.file.allow=always','submodule','add',dependency,'dependency').status).toBe(0);
+	expect(git(root,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qam','Pinned dependency').status).toBe(0);
+	const before=candidate(root), pin=git(nested,'rev-parse','HEAD').stdout.trim();
+	expect(candidate(root)).toEqual(before);
+	writeFileSync(resolve(nested,'first.ts'),'changed private dependency');
+	expect(candidate(root).sourceDigest).not.toBe(before.sourceDigest);
+	expect(custodyDiagnostics(new Map([[root,before]]))).toHaveLength(1);
+	writeFileSync(resolve(nested,'first.ts'),'same private bytes');
+	expect(candidate(root)).toEqual(before);
+	expect(git(nested,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--allow-empty','-qm','Moved').status).toBe(0);
+	expect(()=>candidate(root)).toThrow();
+	expect(git(nested,'switch','--detach',pin).status).toBe(0);
+	expect(candidate(root)).toEqual(before);
+	rmSync(nested,{recursive:true,force:true});mkdirSync(nested);
+	expect(()=>candidate(root)).toThrow();
+	rmSync(nested,{recursive:true,force:true});symlinkSync(dependency,nested,'dir');
+	expect(()=>candidate(root)).toThrow();
+});
+
 it('binds executable modes for tracked and untracked files even when Git ignores file modes',()=>{
 	for(const name of ['first.ts','untracked.ts']) {
 		const root=sourceFixture(),path=resolve(root,name);writeFileSync(path,'same private bytes');chmodSync(path,0o644);

@@ -38,6 +38,39 @@ it('runs every owning unit and integration assertion before any scene and repeat
 	}
 });
 
+it('requires exact initialized submodule custody before complete native prerequisites and retains mutation failure before fresh retry',()=>{
+	const root=fixture(), dependency=mkdtempSync(resolve(tmpdir(),'guarantee-pinned-dependency-'));roots.push(dependency);
+	writeFileSync(resolve(dependency,'source.ts'),'exact dependency bytes');
+	const git=(cwd:string,...args:string[])=>spawnSync('git',args,{cwd,encoding:'utf8'});
+	for(const args of [['init','-q'],['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Dependency']])
+		expect(git(dependency,...args).status).toBe(0);
+	expect(git(root,'-c','protocol.file.allow=always','submodule','add',dependency,'dependency').status).toBe(0);
+	expect(git(root,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qam','Pin dependency').status).toBe(0);
+	const nested=resolve(root,'dependency'), pin=git(nested,'rev-parse','HEAD').stdout.trim(), before=candidate(root);
+	const plan=planLocalGuarantees(root,['proof']);
+	expect(runLocalGuarantees(root,plan,'submodule-first').ok).toBe(true);
+	const first=readFileSync(resolve(root,'.treeseed/guarantees/runs/submodule-first/report.json'));
+	expect(git(nested,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--allow-empty','-qm','Unpinned').status).toBe(0);
+	const order=readFileSync(resolve(root,'.treeseed/order'),'utf8');
+	const denied=runLocalGuarantees(root,plan,'submodule-denied');expect(denied.ok).toBe(false);
+	expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).toBe(order);
+	const failed=readFileSync(resolve(root,'.treeseed/guarantees/runs/submodule-denied/report.json'));
+	expect(git(nested,'switch','--detach',pin).status).toBe(0);
+	writeFileSync(resolve(root,'scene.ts'),"import test from 'node:test'; import {writeFileSync} from 'node:fs'; test('scene boundary',()=>{writeFileSync('dependency/source.ts','scene mutation');});");
+	const mutated=runLocalGuarantees(root,plan,'submodule-mutated');expect(mutated.ok).toBe(false);
+	expect(mutated.results[0]!.steps[0]!.status).toBe('failed');
+	const mutation=readFileSync(resolve(root,'.treeseed/guarantees/runs/submodule-mutated/report.json'));
+	writeFileSync(resolve(nested,'source.ts'),'exact dependency bytes');
+	writeFileSync(resolve(root,'scene.ts'),"import test from 'node:test'; import {appendFileSync} from 'node:fs'; test('scene boundary',()=>{appendFileSync('.treeseed/order','scene\\n');});");
+	expect(candidate(root)).toEqual(before);
+	const retry=runLocalGuarantees(root,plan,'submodule-retry');expect(retry.ok).toBe(true);
+	const output=resolve(root,'.treeseed/guarantees/runs/submodule-retry');
+	expect(JSON.parse(readFileSync(resolve(output,retry.results[0]!.evidence.at(-1)!),'utf8'))).toMatchObject({...before,passed:true,checks:{total:2,passed:2,failed:0,skipped:0,todo:0}});
+	for(const [run,bytes] of [['submodule-first',first],['submodule-denied',failed],['submodule-mutated',mutation]] as const)
+		expect(readFileSync(resolve(root,`.treeseed/guarantees/runs/${run}/report.json`))).toEqual(bytes);
+	expect(candidate(root)).toEqual(before);
+});
+
 it('blocks native scene side effects when an unselected unit test fails', () => {
 	const root = fixture(true); const report = runLocalGuarantees(root, planLocalGuarantees(root, ['proof']), 'unit-red');
 	expect(report.ok).toBe(false);
