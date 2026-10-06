@@ -41,3 +41,18 @@ it('retains only controlled prerequisite failure criteria without copying stack 
 	]);
 	expect(JSON.stringify(fullSuiteFailures(evidence))).not.toContain('private');
 });
+
+it('retains unknown framework failure causes without inventing criteria or leaking duration stacks or assertion values',()=>{
+	for (const milliseconds of [25, 5_000, 30_000]) {
+		const evidence = { testResults: [{ assertionResults: [{ title: 'native execution', status: 'failed',
+			failureMessages: [`Error: Test timed out in ${milliseconds}ms.\nprivate stack and secret value`] }] }] };
+		expect(fullSuiteFailures(evidence)).toEqual([{ title: 'native execution', status: 'failed' }]);
+		expect(JSON.stringify(fullSuiteFailures(evidence))).not.toContain('private');
+	}
+	for (const message of ['Error: STACK_TRACE_ERROR\nprivate stack', 'Error: private timeout token', 'Error: Test timed out in secretms.',
+		'AssertionError: expected secret Test timed out in 25ms.', 'prefix\nError: Test timed out in 25ms.',
+		'Error: Test timed out in 25ms. token=secret']) {
+		expect(fullSuiteFailures({ testResults: [{ assertionResults: [{ title: 'failed', status: 'failed', failureMessages: [message] }] }] }))
+			.toEqual([{ title: 'failed', status: 'failed' }]);
+	}
+});

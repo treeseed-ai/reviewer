@@ -36,6 +36,16 @@ verifiers:
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/integration/guarantee-prerequisites.test.ts
     testName: retains a real full-suite controlled failure stage without copying native failure prose
+  reviewer.prerequisites.framework-watchdog-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: retains unknown framework failure causes without inventing criteria or leaking duration stacks or assertion values
+  reviewer.prerequisites.framework-watchdog-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testName: retains a real Vitest watchdog denial before any scene and keeps failed receipt bytes after a fresh complete unchanged-source retry
   reviewer.prerequisites.exunit-declaration:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
