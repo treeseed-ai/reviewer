@@ -181,14 +181,14 @@ it('blocks every scene when a different participating owner has failing prerequi
 });
 
 it('rejects an escaped test config and missing Git custody without scene side effects', () => {
-	for (const mode of ['escaped','missing-git']) {
+	for (const mode of ['escaped','missing-git','foreign-env','foreign-owned-env']) {
 		const root = fixture();
-		if (mode === 'missing-git') rmSync(resolve(root,'.git'),{recursive:true,force:true});
-		else { const other = fixture(); symlinkSync(resolve(other,'vitest.config.ts'),resolve(root,'outside.config.ts'));
+		if (mode === 'missing-git'||mode === 'foreign-env') rmSync(resolve(root,'.git'),{recursive:true,force:true});
+		else if(mode==='escaped') { const other = fixture(); symlinkSync(resolve(other,'vitest.config.ts'),resolve(root,'outside.config.ts'));
 			writeFileSync(resolve(root,'package.json'),JSON.stringify({scripts:{test:'vitest run --config outside.config.ts'}})); }
-		const stage=mode==='escaped'?'ESCAPED':'MISSING_GIT';
-		expect(runLocalGuarantees(root,planLocalGuarantees(root,['proof']),mode).ok,`ACCEPTANCE_PREREQUISITE_${stage}_DISPOSITION: custody must fail closed`).toBe(false);
-		expect(existsSync(resolve(root,'.treeseed/order')),`ACCEPTANCE_PREREQUISITE_${stage}_SIDE_EFFECT: no suite side effect`).toBe(false);
+		const stage=mode==='escaped'?'ESCAPED':'MISSING_GIT', before={GIT_DIR:process.env.GIT_DIR,GIT_WORK_TREE:process.env.GIT_WORK_TREE}; if(mode.startsWith('foreign-')) { process.env.GIT_DIR=resolve(fixture(),'.git'); process.env.GIT_WORK_TREE=root; }
+		try { expect(runLocalGuarantees(root,planLocalGuarantees(root,['proof']),mode).ok,`ACCEPTANCE_PREREQUISITE_${stage}_DISPOSITION: custody must fail closed`).toBe(false); expect(existsSync(resolve(root,'.treeseed/order')),`ACCEPTANCE_PREREQUISITE_${stage}_SIDE_EFFECT: no suite side effect`).toBe(false); }
+		finally { for(const key of ['GIT_DIR','GIT_WORK_TREE'] as const) { if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key]; } }
 	}
 });
 
