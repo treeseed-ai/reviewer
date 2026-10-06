@@ -1,6 +1,31 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.acceptance.whole-spec-archive-native-1:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-run-discovery.test.ts
+    testName: extracted native Reviewer archive preserves declared bytes and whole specification denial before fresh complete execution
+  reviewer.acceptance.whole-spec-unit-1:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/acceptance-spec.test.ts
+    testName: binds every authoritative criterion to its own selected executable refs without changing requirements or partial evidence
+  reviewer.acceptance.whole-spec-unit-2:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/acceptance-spec.test.ts
+    testName: denies new changed removed unbound and nonselected specification criteria without repairing supplied bindings
+  reviewer.acceptance.whole-spec-native-1:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-run-discovery.test.ts
+    testName: packaged Reviewer denies new changed missing unbound and partial whole specifications before any native suite or scene
+  reviewer.acceptance.whole-spec-native-2:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-run-discovery.test.ts
+    testName: packaged Reviewer retains a real failed whole-suite observation and admits only a fresh complete exact-specification retry
   reviewer.prerequisites.failure-criterion:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
