@@ -2,6 +2,12 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: later-failure-unit
+    action: {verifier: reviewer.prerequisites.later-failure-unit}
+    expect: {status: passed}
+  - id: later-failure-native
+    action: {verifier: reviewer.prerequisites.later-failure-native}
+    expect: {status: passed}
   - id: submodule-unit
     action: {verifier: reviewer.prerequisites.submodule-unit}
     expect: {status: passed}

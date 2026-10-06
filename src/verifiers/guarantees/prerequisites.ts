@@ -68,7 +68,8 @@ export function fullSuiteFailures(value: unknown) {
 		const assertions=row(file).assertionResults;
 		return Array.isArray(assertions) ? assertions.filter(value=>row(value).status!=='passed').map(value=>{
 			const assertion=row(value), messages=assertion.failureMessages;
-			const criterion=Array.isArray(messages)&&typeof messages[0]==='string'?failureCriterion(messages[0]):undefined;
+			const criterion=Array.isArray(messages)?messages.flatMap(message=>
+				typeof message==='string' ? failureCriterion(message) ?? [] : []).at(0):undefined;
 			return {title:assertion.title,status:assertion.status,...(criterion?{criterion}:{})};
 		}) : [];
 	}) : [];
