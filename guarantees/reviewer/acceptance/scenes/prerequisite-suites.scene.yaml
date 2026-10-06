@@ -2,6 +2,21 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: whole-spec-archive-native-1
+    action: {verifier: reviewer.acceptance.whole-spec-archive-native-1}
+    expect: {status: passed}
+  - id: whole-spec-unit-1
+    action: {verifier: reviewer.acceptance.whole-spec-unit-1}
+    expect: {status: passed}
+  - id: whole-spec-unit-2
+    action: {verifier: reviewer.acceptance.whole-spec-unit-2}
+    expect: {status: passed}
+  - id: whole-spec-native-1
+    action: {verifier: reviewer.acceptance.whole-spec-native-1}
+    expect: {status: passed}
+  - id: whole-spec-native-2
+    action: {verifier: reviewer.acceptance.whole-spec-native-2}
+    expect: {status: passed}
   - id: later-failure-unit
     action: {verifier: reviewer.prerequisites.later-failure-unit}
     expect: {status: passed}
