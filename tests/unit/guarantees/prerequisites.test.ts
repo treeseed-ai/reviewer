@@ -60,6 +60,11 @@ it('compares both exact HEAD and source bytes without disclosing source contents
 it('rejects missing candidate custody without throwing or substituting an old receipt', () => {
 	const root = mkdtempSync(resolve(tmpdir(),'prerequisite-no-git-')); roots.push(root);
 	expect(custodyDiagnostics(new Map([[root,{commit:'0'.repeat(40),sourceDigest:'0'.repeat(64)}]]))).toHaveLength(1);
+	const donor=sourceFixture(), owned=sourceFixture(), before={GIT_DIR:process.env.GIT_DIR,GIT_WORK_TREE:process.env.GIT_WORK_TREE};
+	writeFileSync(resolve(root,'first.ts'),'same private bytes'); writeFileSync(resolve(root,'second.ts'),'same private bytes');
+	process.env.GIT_DIR=resolve(donor,'.git');
+	try { const observed=[root,owned].map(target=>{process.env.GIT_WORK_TREE=target;try {candidate(target);return true;}catch{return false;}}); expect(observed).toEqual([false,false]); }
+	finally { for(const key of ['GIT_DIR','GIT_WORK_TREE'] as const) { if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key]; } }
 });
 
 function sourceFixture() {

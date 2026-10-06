@@ -68,15 +68,19 @@ export function fullSuiteFailures(value: unknown) {
 		const assertions=row(file).assertionResults;
 		return Array.isArray(assertions) ? assertions.filter(value=>row(value).status!=='passed').map(value=>{
 			const assertion=row(value), messages=assertion.failureMessages;
-			const criterion=Array.isArray(messages)&&typeof messages[0]==='string'?failureCriterion(messages[0]):undefined;
+			const criterion=Array.isArray(messages)?messages.flatMap(message=>
+				typeof message==='string' ? failureCriterion(message) ?? [] : []).at(0):undefined;
 			return {title:assertion.title,status:assertion.status,...(criterion?{criterion}:{})};
 		}) : [];
 	}) : [];
 }
 
 export function candidate(root: string) {
-	const top = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' });
-	if (top.status !== 0 || realpathSync(top.stdout.trim()) !== realpathSync(root))
+	const top = spawnSync('git', ['rev-parse', '--show-toplevel', '--absolute-git-dir'], { cwd: root, encoding: 'utf8' });
+	const [worktree, directory] = top.stdout.trim().split(/\r?\n/u);
+	const own = spawnSync('git', ['rev-parse', '--resolve-git-dir', resolve(root, '.git')], { cwd: root, encoding: 'utf8' });
+	if (top.status !== 0 || !worktree || !directory || own.status !== 0
+		|| realpathSync(worktree) !== realpathSync(root) || realpathSync(directory) !== realpathSync(own.stdout.trim()))
 		throw new Error('Full prerequisite suite requires its own exact Git source root.');
 	const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: root, encoding: 'utf8' });
 	const files = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' });
