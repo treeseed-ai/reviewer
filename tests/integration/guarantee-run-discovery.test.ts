@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, symlinkSync, cpSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -22,7 +22,11 @@ function specificationFixture() {
   const root = mkdtempSync(resolve(tmpdir(), 'reviewer-whole-spec-'));
   try {
     for (const directory of ['tests', 'guarantees/verifiers', '.treeseed']) mkdirSync(resolve(root, directory), { recursive: true });
-    symlinkSync(resolve(repository, 'node_modules'), resolve(root, 'node_modules'), 'dir');
+    // Reuse the existing native prerequisite fixture's owned-launcher pattern.
+    // The original command's path fence must never be bypassed for selected tests.
+    mkdirSync(resolve(root, 'node_modules/vitest'), { recursive: true });
+    cpSync(resolve(repository, 'node_modules/vitest/vitest.mjs'), resolve(root, 'node_modules/vitest/vitest.mjs'));
+    symlinkSync(resolve(repository, 'node_modules/vitest/dist'), resolve(root, 'node_modules/vitest/dist'), 'dir');
     const specification = '# Specification\n\n## Required outcomes\n- Source bytes remain exact.\n- Native readback matches source bytes.\n';
     const criterion = (text: string) => createHash('sha256').update(`Specification / Required outcomes\n${text}`).digest('hex');
     const contracts = [
@@ -59,7 +63,7 @@ function specificationFixture() {
       const args = [bin, '--workspace', root, '--ids', ids, '--acceptance-spec', 'acceptance.md', '--run-id', runId, ...(plan ? ['--plan'] : [])];
       const before = [...args];
       const child = spawnSync(process.execPath, args, { cwd: root, encoding: 'utf8', timeout: 30_000, maxBuffer: 8 * 1024 * 1024 });
-      expect(child.error).toBeUndefined(); expect(child.signal).toBeNull(); expect(child.stderr).toBe('');
+      expect(child.error).toBeUndefined(); expect(child.signal).toBeNull(); expect(child.stderr, child.stderr).toBe('');
       expect(args).toEqual(before);
       expect(child.stdout.trim().split('\n')).toHaveLength(1);
       const report: LocalGuaranteePlan | GuaranteeRunReport = JSON.parse(child.stdout);
@@ -192,7 +196,7 @@ describe('guarantee run discovery', () => {
         const invoke = (runId: string, plan: boolean, ids = 'proof.unit,proof.native') => {
           const args = [resolve(extracted, manifest.bin['treeseed-reviewer-guarantees']!), '--workspace', fixture.root, '--ids', ids, '--acceptance-spec', 'acceptance.md', '--run-id', runId, ...(plan ? ['--plan'] : [])];
           const before = [...args], child = native(process.execPath, args, fixture.root);
-          expect(args).toEqual(before); expect(child.stderr).toBe(''); expect(child.stdout.trim().split('\n')).toHaveLength(1);
+          expect(args).toEqual(before); expect(child.stderr, child.stderr).toBe(''); expect(child.stdout.trim().split('\n')).toHaveLength(1);
           const report: LocalGuaranteePlan | GuaranteeRunReport = JSON.parse(child.stdout);
           expect(report.ok).toBe(child.status === 0); return { child, report };
         };
