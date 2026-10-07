@@ -242,3 +242,9 @@ workflow:
   - id: custody
     action: {verifier: reviewer.prerequisites.custody}
     expect: {status: passed}
+  - id: test-types-unit
+    action: {verifier: reviewer.acceptance.test-types-unit}
+    expect: {status: passed}
+  - id: test-types-native
+    action: {verifier: reviewer.acceptance.test-types-native}
+    expect: {status: passed}
