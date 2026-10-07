@@ -113,7 +113,7 @@ export function planLocalGuarantees(root: string, ids: string[]): LocalGuarantee
 				}
 			} catch (error) { fail(`${id}: ${error instanceof Error ? error.message : 'Invalid required scene.'}`); }
 		}
-		const verifierRefs = [...new Set([...refs(found.manifest), ...sceneRefs])];
+		const verifierRefs = [...new Set([...refs(found.manifest).filter(ref => !sceneRefs.includes(ref)), ...sceneRefs])];
 		if (!verifierRefs.length) fail(`Guarantee ${id} has no executable verifiers.`);
 		for (const ref of verifierRefs) {
 			if (duplicateVerifiers.has(ref)) fail(`Duplicate verifier ${ref}.`);
