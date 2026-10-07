@@ -1,6 +1,21 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.acceptance.section-scope-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/acceptance-spec.test.ts
+    testName: selects exact authoritative sections while retaining full specification identity and excluded obligations
+  reviewer.acceptance.section-denial-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/acceptance-spec.test.ts
+    testName: denies empty unknown duplicate or stale section scope and every missing selected criterion without repairing whole specification
+  reviewer.acceptance.section-scope-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/acceptance-sections.test.ts
+    testName: packaged native section acceptance retains deferred obligations and full-suite evidence while whole acceptance remains blocked
   reviewer.acceptance.whole-spec-archive-native-1:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
@@ -398,3 +413,23 @@ verifiers:
     testFile: tests/contract/route-contracts.test.ts
     testName: rejects evidence paths outside the workspace
     description: Evidence access rejects paths outside the local workspace boundary.
+  reviewer.acceptance.test-types-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/test-typechecking.test.ts
+    testName: requires strict checking of every actual test source in the complete verification command
+  reviewer.acceptance.test-types-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/test-typechecking.test.ts
+    testName: native TypeScript includes and checks the entire owning test inventory without changing candidate inputs
+  reviewer.acceptance.exact-section-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/acceptance-spec.test.ts
+    testName: selects shared parent requirements without certifying deferred child projects or dropping new parent obligations
+  reviewer.acceptance.exact-section-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/acceptance-sections.test.ts
+    testName: packaged native exact-heading selection enforces shared parent obligations before staged execution while retaining future children

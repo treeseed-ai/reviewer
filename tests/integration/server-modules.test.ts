@@ -96,7 +96,6 @@ function baseReport(root: string, results: GuaranteeRunResult[], plan = basePlan
     results,
     diagnostics: [],
     counts: {
-      planned: results.filter((result) => result.status === 'planned').length,
       passed: results.filter((result) => result.status === 'passed').length,
       failed: results.filter((result) => result.status === 'failed').length,
       skipped: results.filter((result) => result.status === 'skipped').length,
@@ -137,8 +136,8 @@ function mockResponse() {
     on() {
       return this;
     },
-  } as unknown as ServerResponse & { statusCode: number; headers: Record<string, string> };
-  return { response, body: () => Buffer.concat(chunks).toString('utf8') };
+  };
+  return { response: response as unknown as ServerResponse & { statusCode: number; headers: Record<string, string> }, body: () => Buffer.concat(chunks).toString('utf8') };
 }
 
 describe('reviewer server module coverage', () => {
@@ -153,7 +152,7 @@ describe('reviewer server module coverage', () => {
     mkdirSync(resolve(root, '.treeseed/guarantees/runs/bad'), { recursive: true });
     writeFileSync(resolve(root, '.treeseed/guarantees/runs/not-directory.txt'), 'ignored');
     writeFileSync(resolve(root, '.treeseed/guarantees/runs/bad/report.json'), '{bad');
-    writeRun(root, { ...run, runId: 'failed-a', startedAt: '2026-07-08T09:00:00.000Z', completedAt: '2026-07-08T09:00:01.000Z', counts: { planned: 0, passed: 0, failed: 1, skipped: 0, blocked: 0, releaseBlockingFailures: 1 } });
+    writeRun(root, { ...run, runId: 'failed-a', startedAt: '2026-07-08T09:00:00.000Z', completedAt: '2026-07-08T09:00:01.000Z', counts: { passed: 0, failed: 1, skipped: 0, blocked: 0, releaseBlockingFailures: 1 } });
     const fallbackDir = resolve(root, '.treeseed/guarantees/runs/fallback-id');
     mkdirSync(fallbackDir, { recursive: true });
     const fallbackReport = { ...run };

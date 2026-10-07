@@ -73,7 +73,7 @@ function basePlan(entries: GuaranteePlanReport['entries'] = []): GuaranteePlanRe
   };
 }
 
-function baseReport(root: string, results: GuaranteeRunResult[], plan = basePlan()): GuaranteeRunReport {
+function baseReport(root: string, results: GuaranteeRunResult[], plan = basePlan()): GuaranteeRunReport & { plan: GuaranteePlanReport } {
   return {
     ok: results.every((result) => result.status === 'passed'),
     runId: 'run-a',
@@ -87,7 +87,6 @@ function baseReport(root: string, results: GuaranteeRunResult[], plan = basePlan
     results,
     diagnostics: [],
     counts: {
-      planned: results.filter((result) => result.status === 'planned').length,
       passed: results.filter((result) => result.status === 'passed').length,
       failed: results.filter((result) => result.status === 'failed').length,
       skipped: results.filter((result) => result.status === 'skipped').length,
@@ -128,8 +127,8 @@ function mockResponse() {
     on() {
       return this;
     },
-  } as unknown as ServerResponse & { statusCode: number; headers: Record<string, string> };
-  return { response, body: () => Buffer.concat(chunks).toString('utf8') };
+  };
+  return { response: response as unknown as ServerResponse & { statusCode: number; headers: Record<string, string> }, body: () => Buffer.concat(chunks).toString('utf8') };
 }
 
 describe('reviewer critical coverage helpers', () => {
@@ -256,11 +255,10 @@ describe('reviewer critical coverage helpers', () => {
     const first = baseResult({ id: 'a', evidence: ['logs/app.log'], steps: [{ id: 'verify', kind: 'api', status: 'passed', summary: 'ok', evidence: [], diagnostics: [] }] });
     const second = baseResult({ id: 'b', evidence: ['evidence/report.json'], selected: false, dependency: true, steps: [] });
     const plan = basePlan([{ id: 'b', type: 'reviewer', subtype: 'workplan', journey: 'B', ownerPackage: '@treeseed/reviewer', status: 'active', gates: ['security'], sourcePath: 'b.yaml', selected: false, dependency: true, apiVerifierRefs: [], contentVerifierRefs: [], auditVerifierRefs: [], evidenceRequired: [] }]);
-    const items = buildReviewItems({ workspaceRoot: root, run: { runId: 'run-a', kind: 'local', outputRoot: runDir, reportPath: resolve(runDir, 'report.json'), environment: 'local', startedAt: '', ok: true, filter: {}, counts: { planned: 0, passed: 2, failed: 0, skipped: 0, blocked: 0, releaseBlockingFailures: 0 } }, report: baseReport(root, [first, second], plan), plan });
+    const items = buildReviewItems({ workspaceRoot: root, run: { runId: 'run-a', kind: 'local', outputRoot: runDir, reportPath: resolve(runDir, 'report.json'), environment: 'local', startedAt: '', ok: true, filter: {}, counts: { passed: 2, failed: 0, skipped: 0, blocked: 0, releaseBlockingFailures: 0 } }, report: baseReport(root, [first, second], plan), plan });
     expect(items[0]?.primaryLog?.kind).toBe('log');
     expect(items[1]?.primaryLog?.kind).toBe('json');
     expect(items[1]?.dependency).toBe(true);
     expect(items[1]?.releaseBlocking).toBe(true);
   });
 });
-

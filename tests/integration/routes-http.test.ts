@@ -104,6 +104,7 @@ async function createFixtureServer() {
   };
   const context: ReviewerServerContext = {
     workspaceRoot: root,
+    packageRoot: root,
     uiRoot,
     version: 'test',
     tasks: new Map([[completedTask.id, completedTask]]),

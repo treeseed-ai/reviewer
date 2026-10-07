@@ -23,6 +23,11 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - uses: treeseed-ai/sdk/.github/actions/install-exact-sdk@77a6908d4e7580716e9e2ab92de80150b02cdb06
+        env:
+          NODE_ENV: production
+        with:
+          github-token: ${{ github.token }}
       - name: Install native assertion integration toolchain
         uses: erlef/setup-beam@v1
         with:
