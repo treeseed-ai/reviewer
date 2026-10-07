@@ -84,6 +84,37 @@ function writeRun(root: string, kind: 'runs' | 'release', runId: string, report 
 }
 
 describe('guarantee run discovery', () => {
+	it('packaged native criterion bindings cannot read a later scene before its original producer and fresh complete prerequisites', () => {
+		const f = specificationFixture();
+		try {
+			const manifest = { id: 'proof.unit', ownerPackage: '@fixture/spec', acceptanceCriteria: f.contracts.map(contract => ({
+				criterion: contract.criterion, verifierRefs: ['proof.native', 'proof.unit'] })), scene: { required: true, manifest: 'guarantees/proof.unit.scene.yaml' } };
+			const scene = { scope: 'local-component-tests', workflow: ['proof.unit', 'proof.native'].map(ref => ({ id: ref, action: { verifier: ref }, expect: { status: 'passed' } })) };
+			writeFileSync(resolve(f.root, 'guarantees/proof.unit.guarantee.yaml'), JSON.stringify(manifest));
+			writeFileSync(resolve(f.root, 'guarantees/proof.unit.scene.yaml'), JSON.stringify(scene));
+			writeFileSync(resolve(f.root, 'tests/unit.test.ts'), "import {test,expect} from 'vitest';import {readFileSync,writeFileSync,appendFileSync,existsSync} from 'node:fs';test('source bytes remain exact',()=>{const bytes=readFileSync('source.txt');expect(bytes).toEqual(Buffer.from(' exact native source é\\n','utf8'));const prior=existsSync('.treeseed/observations')?readFileSync('.treeseed/observations','utf8').trim().split('\\n').length:0;if(prior>=2)writeFileSync('.treeseed/scene-source',bytes);appendFileSync('.treeseed/observations','unit\\n');});\n");
+			writeFileSync(resolve(f.root, 'tests/integration.test.ts'), "import {test,expect} from 'vitest';import {readFileSync,writeFileSync,appendFileSync,existsSync} from 'node:fs';test('native readback matches source bytes',()=>{const bytes=readFileSync('source.txt');const prior=existsSync('.treeseed/observations')?readFileSync('.treeseed/observations','utf8').trim().split('\\n').length:0;appendFileSync('.treeseed/observations','native\\n');if(prior>=2)expect(readFileSync('.treeseed/scene-source')).toEqual(bytes);writeFileSync('.treeseed/readback',bytes);expect(readFileSync('.treeseed/readback')).toEqual(bytes);});\n");
+			const held = [...f.files.keys()].map(path => [path, readFileSync(resolve(f.root, path))] as const);
+			const result = f.invoke('criterion-scene-order', 'proof.unit');
+			const report = result.report as GuaranteeRunReport;
+			expect(result.child.status, JSON.stringify(report.counts)).toBe(0); expect(report.ok).toBe(true);
+			expect(report.results[0]!.steps.map(step => ({ ref: step.ref, status: step.status }))).toEqual([
+				{ ref: 'proof.unit', status: 'passed' }, { ref: 'proof.native', status: 'passed' }]);
+			const observations = readFileSync(resolve(f.root, '.treeseed/observations'), 'utf8').trim().split('\n');
+			expect(observations).toHaveLength(4); expect(observations.slice(0, 2).sort()).toEqual(['native', 'unit']); expect(observations.slice(2)).toEqual(['unit', 'native']);
+			const receiptRef = report.results[0]!.evidence.find(ref => ref.includes('prerequisite-')); expect(receiptRef).toBeTruthy();
+			const runRoot = resolve(f.root, '.treeseed/guarantees/runs/criterion-scene-order');
+			expect(JSON.parse(readFileSync(resolve(runRoot, receiptRef!), 'utf8'))).toMatchObject({ passed: true, exitCode: 0, checks: { total: 2, passed: 2, failed: 0, skipped: 0, todo: 0 } });
+			for (const step of report.results[0]!.steps) {
+				const evidence = JSON.parse(readFileSync(resolve(runRoot, step.evidence![0]!), 'utf8'));
+				expect(evidence).toMatchObject({ verifierId: step.ref, passed: true, exitCode: 0, signal: null });
+				expect(evidence.sourceDigest).toBe(createHash('sha256').update(readFileSync(resolve(f.root, evidence.testFile))).digest('hex'));
+			}
+			expect(JSON.parse(readFileSync(resolve(runRoot, 'report.json'), 'utf8'))).toEqual(report);
+			expect(readFileSync(resolve(f.root, '.treeseed/scene-source'))).toEqual(readFileSync(resolve(f.root, 'source.txt')));
+			for (const [path, bytes] of held) expect(readFileSync(resolve(f.root, path))).toEqual(bytes);
+		} finally { f.close(); }
+	}, 30_000);
   it('extracted native Reviewer archive preserves declared bytes and whole specification denial before fresh complete execution', () => {
     const repository = resolve(import.meta.dirname, '../..');
     const manifest: { name: string; version: string; files: string[]; bin: Record<string, string> } = JSON.parse(readFileSync(resolve(repository, 'package.json'), 'utf8'));
