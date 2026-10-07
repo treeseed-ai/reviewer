@@ -51,7 +51,7 @@ export function acceptanceCriteria(markdown: string): AcceptanceCriterion[] {
 	return criteria;
 }
 
-export function acceptanceCoverage(criteria: AcceptanceCriterion[], bindings: AcceptanceBinding[], verifiers: Set<string>, sections?: string[]) {
+export function acceptanceCoverage(criteria: AcceptanceCriterion[], bindings: AcceptanceBinding[], verifiers: Set<string>, sections?: string[], exactSections?: string[]) {
 	const diagnostics: string[] = [];
 	const known = new Set(criteria.map(criterion => criterion.id));
 	const includes = (criterion: AcceptanceCriterion, section: string) => criterion.section === section || criterion.section.startsWith(`${section} / `);
@@ -59,7 +59,12 @@ export function acceptanceCoverage(criteria: AcceptanceCriterion[], bindings: Ac
 		|| sections.some(section => typeof section !== 'string' || !section || section.trim() !== section
 			|| !criteria.some(criterion => includes(criterion, section)))))
 		throw new Error('Acceptance section selection must contain unique exact nonempty authoritative paths.');
-	const required = sections === undefined ? criteria : criteria.filter(criterion => sections.some(section => includes(criterion, section)));
+	if (exactSections !== undefined && (!exactSections.length || new Set(exactSections).size !== exactSections.length
+		|| exactSections.some(section => typeof section !== 'string' || !section || section.trim() !== section
+			|| !criteria.some(criterion => criterion.section === section))))
+		throw new Error('Acceptance section selection must contain unique exact nonempty authoritative paths.');
+	const required = sections === undefined && exactSections === undefined ? criteria : criteria.filter(criterion =>
+		sections?.some(section => includes(criterion, section)) || exactSections?.includes(criterion.section));
 	const requiredIds = new Set(required.map(criterion => criterion.id));
 	const covered = new Set<string>();
 	for (const binding of bindings) {
@@ -74,7 +79,8 @@ export function acceptanceCoverage(criteria: AcceptanceCriterion[], bindings: Ac
 	const missing = required.filter(criterion => !covered.has(criterion.id));
 	for (const criterion of missing) diagnostics.push(`Uncovered acceptance criterion at line ${criterion.line}: ${criterion.section} [${criterion.id}].`);
 	return { ok: diagnostics.length === 0, total: required.length, covered: covered.size, missing, diagnostics,
-		...(sections === undefined ? {} : { selection: { sections: [...sections], wholeTotal: criteria.length,
+		...(sections === undefined && exactSections === undefined ? {} : { selection: { sections: [...(sections ?? [])],
+			...(exactSections === undefined ? {} : { exactSections: [...exactSections] }), wholeTotal: criteria.length,
 			selectedIds: required.map(criterion => criterion.id), deferredIds: criteria.filter(criterion => !requiredIds.has(criterion.id)).map(criterion => criterion.id),
 			wholeSpecification: required.length === criteria.length } }),
 	};

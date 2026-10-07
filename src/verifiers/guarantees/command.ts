@@ -25,13 +25,13 @@ export function verifierTimeout(value: unknown): number {
 	return value;
 }
 export function localRequestDiagnostics(args: string[]): GuaranteeDiagnostic[] {
-	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment', '--acceptance-spec', '--acceptance-section']);
+	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment', '--acceptance-spec', '--acceptance-section', '--acceptance-exact-section']);
 	const errors = args.filter(arg => arg.startsWith('--') && !supported.has(arg))
 		.map(arg => diagnostic(`Unsupported local component option ${arg}; no evidence was executed.`));
 	const environment = args.indexOf('--environment');
 	if (environment >= 0 && args[environment + 1] !== 'local')
 		errors.push(diagnostic('Local component tests cannot attest a staging or production environment.'));
-	if (args.includes('--acceptance-section') && !args.includes('--acceptance-spec'))
+	if ((args.includes('--acceptance-section') || args.includes('--acceptance-exact-section')) && !args.includes('--acceptance-spec'))
 		errors.push(diagnostic('Acceptance section selection requires the original complete acceptance specification.'));
 	return errors;
 }
@@ -242,7 +242,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
 			const bindings = plan.entries.flatMap(entry => (entry.manifest.acceptanceCriteria ?? []) as AcceptanceBinding[]);
 			const selected = new Set(plan.entries.flatMap(entry => entry.verifierRefs));
 			const sections = process.argv.flatMap((arg, index) => arg === '--acceptance-section' ? [process.argv[index + 1] ?? ''] : []);
-			const coverage = acceptanceCoverage(criteria, bindings, selected, sections.length ? sections : undefined);
+			const exactSections = process.argv.flatMap((arg, index) => arg === '--acceptance-exact-section' ? [process.argv[index + 1] ?? ''] : []);
+			const coverage = acceptanceCoverage(criteria, bindings, selected, sections.length ? sections : undefined, exactSections.length ? exactSections : undefined);
 			if (coverage.selection) plan.acceptanceSelection = coverage.selection;
 			plan.diagnostics.push(...coverage.diagnostics.map(diagnostic));
 		} catch (error) { plan.diagnostics.push(diagnostic(error instanceof Error ? error.message : 'Invalid acceptance specification.')); }

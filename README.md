@@ -83,3 +83,10 @@ Deferred criteria are unproven, never passed. A stage pass with
 `wholeSpecification: false` cannot be presented as final acceptance. Omit all
 section options for the unchanged full gate. Section selection does not filter
 or reuse complete participating-owner prerequisite suites.
+
+When a shared requirement is directly under a heading whose children belong to
+later stages, `--acceptance-exact-section "Acceptance / Projects"` selects only
+that heading's own requirements. Combine it with ordinary section selections
+for the current child project. Newly added or changed shared requirements still
+fail without bindings; no requirement text or identity is rewritten. The receipt
+retains these heading-only paths as `acceptanceSelection.exactSections`.
