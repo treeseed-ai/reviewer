@@ -234,13 +234,18 @@ describe('package-owned guarantee execution', () => {
 			{messages:['Error: private-value\n ❯ tests/proof.test.ts:9007199254740992:2'], expected:{code:'Error',line:0,column:0}},
 			{messages:['private-value ACCEPTANCE_BOUNDARY:\n ❯ /foreign/tests/proof.test.ts:1:2'], expected:{code:'test_failed',line:0,column:0}},
 			{messages:['CredentialError: private-value'], expected:{code:'test_failed',line:0,column:0}},
+			{messages:['ReferenceError: private-value\n    at helper (file://@OWN@/tests/proof.test.ts:7:8)'], expected:{code:'ReferenceError',line:7,column:8}},
+			{messages:['Error: ACCEPTANCE_CLI_COMMAND: workdays.show ETIMEDOUT\n    at @OWN@/tests/proof.test.ts:6:9'], expected:{code:'Error',line:6,column:9,criterion:'ACCEPTANCE_CLI_COMMAND',cliFailure:'workdays.show ETIMEDOUT'}},
+			{messages:['Error: ACCEPTANCE_CLI_COMMAND: workdays.show ETIMEDOUT token=private-value\n    at /foreign/proof.test.ts:6:9'], expected:{code:'Error',line:0,column:0,criterion:'ACCEPTANCE_CLI_COMMAND'}},
 			{messages:[null,{message:'private-value'}], expected:{code:'test_failed',line:0,column:0}},
 			{messages:null, expected:{code:'test_failed',line:0,column:0}},
 			{messages:[], expected:{code:'test_failed',line:0,column:0}},
 		];
 		for (const [index,item] of cases.entries()) {
 			const root=fixture(), supplied={success:false,numPassedTests:0,numFailedTests:1,testResults:[{assertionResults:[{
-				title:'proves the boundary',status:'failed',duration:1,failureMessages:item.messages,failure:{message:'private-value'}}]}]};
+				title:'proves the boundary',status:'failed',duration:1,
+				failureMessages:Array.isArray(item.messages)?item.messages.map(message=>typeof message==='string'?message.replaceAll('@OWN@',root):message):item.messages,
+				failure:{message:'private-value'}}]}]};
 			const bytes=JSON.stringify(supplied), program=caseProgram(`process.stdout.write(${JSON.stringify(bytes)});`);
 			writeFileSync(resolve(root,'node_modules/vitest/vitest.mjs'),program);
 			const result=runLocalGuarantees(root,planLocalGuarantees(root,['proof']),`safe-selected-${index}`);
@@ -252,6 +257,13 @@ describe('package-owned guarantee execution', () => {
 			expect(readFileSync(resolve(root,'node_modules/vitest/vitest.mjs'),'utf8')).toBe(program);
 			expect(JSON.stringify(supplied)).toBe(bytes);
 		}
+		const root=fixture(), supplied={success:true,numPassedTests:1,numFailedTests:0,testResults:[{assertionResults:[{
+			title:'proves the boundary',status:'passed',duration:1,failure:{message:'private-value'},failureMessages:['Error: private-value']}]}]};
+		writeFileSync(resolve(root,'node_modules/vitest/vitest.mjs'),caseProgram(`process.stdout.write(${JSON.stringify(JSON.stringify(supplied))});`));
+		const result=runLocalGuarantees(root,planLocalGuarantees(root,['proof']),'safe-passed');
+		expect(result.ok).toBe(true);
+		const evidence=JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/safe-passed',result.results[0]!.evidence[0]!),'utf8'));
+		expect(evidence.checks).toEqual([{title:'proves the boundary',status:'passed',duration:1}]);
 	});
 	it('blocks the whole run on unresolved dependencies', () => {
 		const root = fixture();
