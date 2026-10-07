@@ -15,6 +15,7 @@ type Row = Record<string, unknown>;
 export interface LocalGuaranteePlan extends GuaranteePlanReport {
 	entries: Array<GuaranteePlanEntry & { manifest: Row; verifierRefs: string[]; scope?: string }>;
 	verifiers: Record<string, { definition: GuaranteeVerifierDefinition; root: string }>;
+	acceptanceSelection?: NonNullable<ReturnType<typeof acceptanceCoverage>['selection']>;
 }
 const diagnostic = (message: string): GuaranteeDiagnostic => ({ severity: 'error', code: 'guarantee.verification_failed', message });
 export function verifierTimeout(value: unknown): number {
@@ -24,12 +25,14 @@ export function verifierTimeout(value: unknown): number {
 	return value;
 }
 export function localRequestDiagnostics(args: string[]): GuaranteeDiagnostic[] {
-	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment', '--acceptance-spec']);
+	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment', '--acceptance-spec', '--acceptance-section', '--acceptance-exact-section']);
 	const errors = args.filter(arg => arg.startsWith('--') && !supported.has(arg))
 		.map(arg => diagnostic(`Unsupported local component option ${arg}; no evidence was executed.`));
 	const environment = args.indexOf('--environment');
 	if (environment >= 0 && args[environment + 1] !== 'local')
 		errors.push(diagnostic('Local component tests cannot attest a staging or production environment.'));
+	if ((args.includes('--acceptance-section') || args.includes('--acceptance-exact-section')) && !args.includes('--acceptance-spec'))
+		errors.push(diagnostic('Acceptance section selection requires the original complete acceptance specification.'));
 	return errors;
 }
 function files(root: string, suffix: string): string[] {
@@ -223,7 +226,8 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	const counts = { passed: results.filter(r => r.status === 'passed').length, failed: results.filter(r => r.status === 'failed').length,
 		blocked: results.filter(r => r.status === 'blocked').length, skipped: 0, releaseBlockingFailures: 0 };
 	const report: GuaranteeRunReport = { schemaVersion: 'treeseed.guarantee-run/v1', runId, environment: 'local', scope, startedAt, completedAt: new Date().toISOString(),
-		ok: plan.ok && results.length > 0 && counts.passed === results.length, filter: {}, counts, results, diagnostics: [...plan.diagnostics, ...prerequisiteDiagnostics] };
+		ok: plan.ok && results.length > 0 && counts.passed === results.length, filter: {}, counts, results, diagnostics: [...plan.diagnostics, ...prerequisiteDiagnostics],
+		...(plan.acceptanceSelection ? { acceptanceSelection: plan.acceptanceSelection } : {}) };
 	writeFileSync(resolve(output, 'plan.json'), JSON.stringify(plan, null, 2));
 	writeFileSync(resolve(output, 'report.json'), JSON.stringify(report, null, 2));
 	return report;
@@ -237,7 +241,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
 			const criteria = acceptanceCriteria(readFileSync(resolve(root, option('acceptance-spec')), 'utf8'));
 			const bindings = plan.entries.flatMap(entry => (entry.manifest.acceptanceCriteria ?? []) as AcceptanceBinding[]);
 			const selected = new Set(plan.entries.flatMap(entry => entry.verifierRefs));
-			const coverage = acceptanceCoverage(criteria, bindings, selected);
+			const sections = process.argv.flatMap((arg, index) => arg === '--acceptance-section' ? [process.argv[index + 1] ?? ''] : []);
+			const exactSections = process.argv.flatMap((arg, index) => arg === '--acceptance-exact-section' ? [process.argv[index + 1] ?? ''] : []);
+			const coverage = acceptanceCoverage(criteria, bindings, selected, sections.length ? sections : undefined, exactSections.length ? exactSections : undefined);
+			if (coverage.selection) plan.acceptanceSelection = coverage.selection;
 			plan.diagnostics.push(...coverage.diagnostics.map(diagnostic));
 		} catch (error) { plan.diagnostics.push(diagnostic(error instanceof Error ? error.message : 'Invalid acceptance specification.')); }
 	}

@@ -87,7 +87,6 @@ function baseReport(root: string, results: GuaranteeRunResult[], plan = basePlan
     results,
     diagnostics: [],
     counts: {
-      planned: results.filter((result) => result.status === 'planned').length,
       passed: results.filter((result) => result.status === 'passed').length,
       failed: results.filter((result) => result.status === 'failed').length,
       skipped: results.filter((result) => result.status === 'skipped').length,
@@ -128,8 +127,8 @@ function mockResponse() {
     on() {
       return this;
     },
-  } as unknown as ServerResponse & { statusCode: number; headers: Record<string, string> };
-  return { response, body: () => Buffer.concat(chunks).toString('utf8') };
+  };
+  return { response: response as unknown as ServerResponse & { statusCode: number; headers: Record<string, string> }, body: () => Buffer.concat(chunks).toString('utf8') };
 }
 
 describe('evidence and route coverage', () => {
@@ -182,7 +181,7 @@ describe('evidence and route coverage', () => {
     writeFileSync(runShim, `console.log(JSON.stringify({ ok: true, source: 'run-route' }));\n`);
     writeRun(root, baseReport(root, [baseResult()]));
     const task: ReviewerTask = { id: 'running', status: 'running', command: [], startedAt: '', stdout: [], stderr: [], output: [], lastOutputAt: '' };
-    const context = { workspaceRoot: root, uiRoot, version: 'test', tasks: new Map([[task.id, task]]) };
+    const context = { workspaceRoot: root, packageRoot, uiRoot, version: 'test', tasks: new Map([[task.id, task]]) };
     const server = createServer((request, response) => {
       void handleReviewerRequest(context, request, response);
     });
@@ -227,7 +226,7 @@ describe('evidence and route coverage', () => {
 
     const unbuiltRoot = tempRoot();
     const unbuiltServer = createServer((request, response) => {
-      void handleReviewerRequest({ workspaceRoot: unbuiltRoot, uiRoot: resolve(unbuiltRoot, 'missing-ui'), version: 'test', tasks: new Map() }, request, response);
+      void handleReviewerRequest({ workspaceRoot: unbuiltRoot, packageRoot: unbuiltRoot, uiRoot: resolve(unbuiltRoot, 'missing-ui'), version: 'test', tasks: new Map() }, request, response);
     });
     servers.push(unbuiltServer);
     const unbuiltUrl = await new Promise<string>((resolvePromise) => unbuiltServer.listen(0, '127.0.0.1', () => {

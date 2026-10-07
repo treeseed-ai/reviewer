@@ -66,3 +66,27 @@ Unbound or changed criteria fail closed with their source line and section.
 Bindings are proof obligations, not automatic claims of semantic coverage;
 reviews must confirm that the assertion proves the entire criterion. Existing
 read-back scenes do not yet cover the full agent acceptance specification.
+
+For an explicitly authorized stage, repeat `--acceptance-section` with each
+exact heading path, including every shared requirement applicable to that
+stage. A path includes its descendants only at the ` / ` heading boundary;
+unknown, empty or duplicate paths fail. The complete original Markdown remains
+the input, and original criterion identities and stale-binding checks remain.
+For example, a specification headed `Acceptance` can select
+`--acceptance-section "Acceptance / Shared" --acceptance-section "Acceptance / First project"`.
+The owning acceptance workflow—not Reviewer—defines the authorized stage and
+its required shared sections; arbitrary selection cannot certify that policy.
+
+Scoped plans and run receipts retain `acceptanceSelection`: exact sections,
+whole criterion count, selected IDs, deferred IDs and `wholeSpecification`.
+Deferred criteria are unproven, never passed. A stage pass with
+`wholeSpecification: false` cannot be presented as final acceptance. Omit all
+section options for the unchanged full gate. Section selection does not filter
+or reuse complete participating-owner prerequisite suites.
+
+When a shared requirement is directly under a heading whose children belong to
+later stages, `--acceptance-exact-section "Acceptance / Projects"` selects only
+that heading's own requirements. Combine it with ordinary section selections
+for the current child project. Newly added or changed shared requirements still
+fail without bindings; no requirement text or identity is rewritten. The receipt
+retains these heading-only paths as `acceptanceSelection.exactSections`.
