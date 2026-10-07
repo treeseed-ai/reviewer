@@ -34,6 +34,22 @@ function fixture() {
 }
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 describe('package-owned guarantee execution', () => {
+	it('retains declared scene order when criterion and contract bindings reference later steps first without mutating source authority', () => {
+		const root = fixture();
+		const manifest = { id: 'proof', api: { verifierRefs: ['proof.check', 'proof.extra'] },
+			acceptanceCriteria: [{ criterion: 'controlled-criterion-input', verifierRefs: ['proof.check', 'proof.first', 'proof.check'] }],
+			scene: { required: true, manifest: 'scenario.yaml' } };
+		const scene = { scope: 'local-component-tests', workflow: ['proof.first', 'proof.check'].map(ref => ({ id: ref, action: { verifier: ref }, expect: { status: 'passed' } })) };
+		writeFileSync(resolve(root, 'guarantees/proof.guarantee.yaml'), JSON.stringify(manifest));
+		writeFileSync(resolve(root, 'scenario.yaml'), JSON.stringify(scene));
+		writeFileSync(resolve(root, 'guarantees/verifiers/proof.verifiers.yaml'), JSON.stringify({ verifiers: Object.fromEntries(['proof.first', 'proof.check', 'proof.extra'].map(ref =>
+			[ref, { kind: 'vitestCase', ownerPackage: 'fixture', testFile: 'tests/proof.test.ts', testName: ref }])) }));
+		const held = ['guarantees/proof.guarantee.yaml', 'scenario.yaml', 'guarantees/verifiers/proof.verifiers.yaml'].map(path => [path, readFileSync(resolve(root, path))] as const);
+		const plan = planLocalGuarantees(root, ['proof']); expect(plan.ok).toBe(true);
+		expect(plan.entries[0]!.sceneVerifierRefs).toEqual(['proof.first', 'proof.check']);
+		expect(plan.entries[0]!.verifierRefs).toEqual(['proof.extra', 'proof.first', 'proof.check']);
+		for (const [path, bytes] of held) expect(readFileSync(resolve(root, path))).toEqual(bytes);
+	});
 	it('keeps a bounded package-declared test watchdog distinct from assignment clocks', () => {
 		expect(verifierTimeout(undefined)).toBe(120_000);
 		expect(verifierTimeout(28_800_000)).toBe(28_800_000);

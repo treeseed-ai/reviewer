@@ -1,6 +1,16 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.acceptance.scene-order-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantee-command.test.ts
+    testName: retains declared scene order when criterion and contract bindings reference later steps first without mutating source authority
+  reviewer.acceptance.scene-order-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantee-run-discovery.test.ts
+    testName: packaged native criterion bindings cannot read a later scene before its original producer and fresh complete prerequisites
   reviewer.acceptance.section-scope-unit:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
