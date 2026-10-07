@@ -120,6 +120,19 @@ it('reads exact selected native Vitest report bytes despite child output and ret
 			expect(evidence).toMatchObject({verifierId: 'proof.scene', testName: 'selected native output',
 				passed: !failing, exitCode: failing ? 1 : 0, signal: null,
 				checks: [{title: 'selected native output', status: failing ? 'failed' : 'passed'}]});
+			if (failing) {
+				expect(evidence.checks[0].failure).toMatchObject({code:'AssertionError',file:'tests/integration.test.ts'});
+				expect(evidence.checks[0].failure.line).toBe(2);
+				expect(Number.isSafeInteger(evidence.checks[0].failure.column)).toBe(true);
+				expect(evidence.checks[0].failure.column).toBeGreaterThan(0);
+				expect(Object.keys(evidence.checks[0].failure).sort()).toEqual(['code','column','file','line']);
+				expect(JSON.stringify(evidence)).not.toMatch(/expected true|received false|AssertionError:|native-runtime\.tgz|failureMessages/);
+			} else expect(evidence.checks[0]).not.toHaveProperty('failure');
+			if (runId==='first') writeFileSync(resolve(root,'.treeseed/first-selected-evidence'),JSON.stringify(evidence));
+			else {
+				const first=resolve(root,`.treeseed/guarantees/runs/selected-output-${failing}-first`,report.results[0]!.evidence[0]!);
+				expect(JSON.stringify(JSON.parse(readFileSync(first,'utf8')))).toBe(readFileSync(resolve(root,'.treeseed/first-selected-evidence'),'utf8'));
+			}
 			expect(candidate(root)).toEqual(before);
 		}
 		expect(readFileSync(resolve(root, '.treeseed/selected-observations'), 'utf8')).toBe('1\n2\n3\n4\n');
