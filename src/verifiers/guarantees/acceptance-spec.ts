@@ -51,19 +51,31 @@ export function acceptanceCriteria(markdown: string): AcceptanceCriterion[] {
 	return criteria;
 }
 
-export function acceptanceCoverage(criteria: AcceptanceCriterion[], bindings: AcceptanceBinding[], verifiers: Set<string>) {
+export function acceptanceCoverage(criteria: AcceptanceCriterion[], bindings: AcceptanceBinding[], verifiers: Set<string>, sections?: string[]) {
 	const diagnostics: string[] = [];
 	const known = new Set(criteria.map(criterion => criterion.id));
+	const includes = (criterion: AcceptanceCriterion, section: string) => criterion.section === section || criterion.section.startsWith(`${section} / `);
+	if (sections !== undefined && (!sections.length || new Set(sections).size !== sections.length
+		|| sections.some(section => typeof section !== 'string' || !section || section.trim() !== section
+			|| !criteria.some(criterion => includes(criterion, section)))))
+		throw new Error('Acceptance section selection must contain unique exact nonempty authoritative paths.');
+	const required = sections === undefined ? criteria : criteria.filter(criterion => sections.some(section => includes(criterion, section)));
+	const requiredIds = new Set(required.map(criterion => criterion.id));
 	const covered = new Set<string>();
 	for (const binding of bindings) {
 		if (!known.has(binding.criterion)) { diagnostics.push(`Unknown or changed acceptance criterion ${binding.criterion}.`); continue; }
+		if (!requiredIds.has(binding.criterion)) continue;
 		if (!Array.isArray(binding.verifierRefs) || !binding.verifierRefs.length
 			|| binding.verifierRefs.some(ref => !verifiers.has(ref))) {
 			diagnostics.push(`Acceptance criterion ${binding.criterion} has no selected executable verifier binding.`); continue;
 		}
 		covered.add(binding.criterion);
 	}
-	const missing = criteria.filter(criterion => !covered.has(criterion.id));
+	const missing = required.filter(criterion => !covered.has(criterion.id));
 	for (const criterion of missing) diagnostics.push(`Uncovered acceptance criterion at line ${criterion.line}: ${criterion.section} [${criterion.id}].`);
-	return { ok: diagnostics.length === 0, total: criteria.length, covered: covered.size, missing, diagnostics };
+	return { ok: diagnostics.length === 0, total: required.length, covered: covered.size, missing, diagnostics,
+		...(sections === undefined ? {} : { selection: { sections: [...sections], wholeTotal: criteria.length,
+			selectedIds: required.map(criterion => criterion.id), deferredIds: criteria.filter(criterion => !requiredIds.has(criterion.id)).map(criterion => criterion.id),
+			wholeSpecification: required.length === criteria.length } }),
+	};
 }

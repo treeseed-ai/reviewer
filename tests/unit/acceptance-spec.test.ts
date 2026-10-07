@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { acceptanceCriteria, acceptanceCoverage } from '../../src/verifiers/guarantees/acceptance-spec.ts';
+import { localRequestDiagnostics } from '../../src/verifiers/guarantees/command.ts';
 
 const document = '# Acceptance\n\n## Purpose\nOverview.\n\n## Rules\n- Never mutate upstream.\n- [ ] Complete both cycles.\n\nRequired acceptance: exact refs resolve.\n\n## Progress record\nTransient diary.\n\n## Completion\nAll projects pass.\n';
 describe('authoritative acceptance specification coverage', () => {
@@ -35,6 +36,8 @@ describe('authoritative acceptance specification coverage', () => {
 		expect(acceptanceCoverage(criteria, bindings, new Set(), sections).ok).toBe(false);
 		expect(acceptanceCoverage(criteria, [...bindings, { criterion: 'stale', verifierRefs: ['proof'] }], selected, sections).ok).toBe(false);
 		expect(acceptanceCoverage(criteria, bindings, selected, sections).ok).toBe(true);
+		expect(localRequestDiagnostics(['--acceptance-section', sections[0]!])).toHaveLength(1);
+		expect(localRequestDiagnostics(['--acceptance-spec', 'acceptance.md', '--acceptance-section', sections[0]!])).toEqual([]);
 	});
 	it('extracts normative rules, checklist and project requirements without progress diaries', () => {
 		const criteria = acceptanceCriteria(document);
