@@ -248,3 +248,9 @@ workflow:
   - id: test-types-native
     action: {verifier: reviewer.acceptance.test-types-native}
     expect: {status: passed}
+  - id: exact-section-unit
+    action: {verifier: reviewer.acceptance.exact-section-unit}
+    expect: {status: passed}
+  - id: exact-section-native
+    action: {verifier: reviewer.acceptance.exact-section-native}
+    expect: {status: passed}

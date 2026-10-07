@@ -57,8 +57,8 @@ export function specificationFixture() {
       expect(spawnSync('git', args, { cwd: root, encoding: 'utf8' }).status).toBe(0);
     const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
     expect(head.status).toBe(0);
-    const invoke = (runId: string, ids = 'proof.unit,proof.native', plan = false, sections: string[] = []) => {
-      const args = [bin, '--workspace', root, '--ids', ids, '--acceptance-spec', 'acceptance.md', '--run-id', runId, ...(plan ? ['--plan'] : []), ...sections.flatMap(section => ['--acceptance-section', section])];
+    const invoke = (runId: string, ids = 'proof.unit,proof.native', plan = false, sections: string[] = [], exactSections: string[] = []) => {
+      const args = [bin, '--workspace', root, '--ids', ids, '--acceptance-spec', 'acceptance.md', '--run-id', runId, ...(plan ? ['--plan'] : []), ...sections.flatMap(section => ['--acceptance-section', section]), ...exactSections.flatMap(section => ['--acceptance-exact-section', section])];
       const before = [...args];
       const child = spawnSync(process.execPath, args, { cwd: root, encoding: 'utf8', timeout: 30_000, maxBuffer: 8 * 1024 * 1024 });
       expect(child.error).toBeUndefined(); expect(child.signal).toBeNull(); expect(child.stderr, child.stderr).toBe('');

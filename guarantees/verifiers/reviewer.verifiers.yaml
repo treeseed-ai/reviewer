@@ -423,3 +423,13 @@ verifiers:
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/integration/test-typechecking.test.ts
     testName: native TypeScript includes and checks the entire owning test inventory without changing candidate inputs
+  reviewer.acceptance.exact-section-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/acceptance-spec.test.ts
+    testName: selects shared parent requirements without certifying deferred child projects or dropping new parent obligations
+  reviewer.acceptance.exact-section-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/acceptance-sections.test.ts
+    testName: packaged native exact-heading selection enforces shared parent obligations before staged execution while retaining future children

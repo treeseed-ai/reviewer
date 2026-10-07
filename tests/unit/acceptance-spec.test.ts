@@ -5,6 +5,25 @@ import { localRequestDiagnostics } from '../../src/verifiers/guarantees/command.
 
 const document = '# Acceptance\n\n## Purpose\nOverview.\n\n## Rules\n- Never mutate upstream.\n- [ ] Complete both cycles.\n\nRequired acceptance: exact refs resolve.\n\n## Progress record\nTransient diary.\n\n## Completion\nAll projects pass.\n';
 describe('authoritative acceptance specification coverage', () => {
+    it('selects shared parent requirements without certifying deferred child projects or dropping new parent obligations', () => {
+        const source = '# Spec\n## Projects\nShared project authority.\n### First\n- First outcome.\n### Later\n- Later outcome.\n';
+        const criteria = acceptanceCriteria(source), sections = ['Spec / Projects / First'], exact = ['Spec / Projects'];
+        const bindings = criteria.map((item, index) => ({ criterion: item.id, verifierRefs: [`proof.${index}`] }));
+        const selected = new Set(['proof.0', 'proof.1']), before = structuredClone({ source, criteria, sections, exact, bindings });
+        const scoped = acceptanceCoverage(criteria, bindings, selected, sections, exact);
+        expect(scoped).toEqual({ ok: true, total: 2, covered: 2, missing: [], diagnostics: [], selection: {
+            sections, exactSections: exact, wholeTotal: 3, selectedIds: criteria.slice(0, 2).map(item => item.id), deferredIds: [criteria[2]!.id], wholeSpecification: false,
+        } });
+        for (const changed of [source.replace('Shared project authority.', 'Changed authority.'), source.replace('### First', 'New shared obligation.\n\n### First')])
+            expect(acceptanceCoverage(acceptanceCriteria(changed), bindings, selected, sections, exact).ok).toBe(false);
+        for (const paths of [[], [''], [' Spec / Projects'], ['Spec / Missing'], ['Spec / Projects', 'Spec / Projects']])
+            expect(() => acceptanceCoverage(criteria, bindings, selected, sections, paths)).toThrow('Acceptance section');
+        expect(acceptanceCoverage(criteria, bindings, selected, ['Spec / Projects']).ok).toBe(false);
+        expect(acceptanceCoverage(criteria, bindings, selected).ok).toBe(false);
+        expect(localRequestDiagnostics(['--acceptance-exact-section', exact[0]!])).toHaveLength(1);
+        expect(localRequestDiagnostics(['--acceptance-spec', 'spec.md', '--acceptance-exact-section', exact[0]!])).toEqual([]);
+        expect({ source, criteria, sections, exact, bindings }).toEqual(before);
+    });
 	it('selects exact authoritative sections while retaining full specification identity and excluded obligations', () => {
 		const source = '# Spec\n## Shared\n- Shared requirement.\n## First project\n- First outcome.\n### Nested\n- Exact nested outcome.\n## First project extra\n- Separate future outcome.\n## Later project\n- Later outcome.\n';
 		const criteria = acceptanceCriteria(source);
