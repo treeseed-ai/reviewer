@@ -87,7 +87,6 @@ function baseReport(root: string, results: GuaranteeRunResult[], plan = basePlan
     results,
     diagnostics: [],
     counts: {
-      planned: results.filter((result) => result.status === 'planned').length,
       passed: results.filter((result) => result.status === 'passed').length,
       failed: results.filter((result) => result.status === 'failed').length,
       skipped: results.filter((result) => result.status === 'skipped').length,
@@ -128,8 +127,8 @@ function mockResponse() {
     on() {
       return this;
     },
-  } as unknown as ServerResponse & { statusCode: number; headers: Record<string, string> };
-  return { response, body: () => Buffer.concat(chunks).toString('utf8') };
+  };
+  return { response: response as unknown as ServerResponse & { statusCode: number; headers: Record<string, string> }, body: () => Buffer.concat(chunks).toString('utf8') };
 }
 
 describe('workplan edge coverage', () => {
@@ -182,4 +181,3 @@ describe('workplan edge coverage', () => {
     expect(existsSync(missingSceneResponse.workplanYamlPath)).toBe(true);
   });
 });
-

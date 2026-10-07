@@ -70,7 +70,7 @@ function fixtureReport(overrides: Partial<GuaranteeRunReport> = {}): GuaranteeRu
       diagnostics: [{ severity: 'error', code: 'guarantee.scene_execution_failed', message: 'Scene failed.' }],
     }],
     diagnostics: [],
-    counts: { planned: 0, passed: 0, failed: 1, skipped: 0, blocked: 0, releaseBlockingFailures: 0 },
+    counts: { passed: 0, failed: 1, skipped: 0, blocked: 0, releaseBlockingFailures: 0 },
     ...overrides,
   };
 }

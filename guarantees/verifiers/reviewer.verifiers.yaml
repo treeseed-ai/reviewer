@@ -416,7 +416,7 @@ verifiers:
   reviewer.acceptance.test-types-unit:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
-    testFile: tests/unit/test-typechecking.test.ts
+    testFile: tests/unit/guarantees/test-typechecking.test.ts
     testName: requires strict checking of every actual test source in the complete verification command
   reviewer.acceptance.test-types-native:
     kind: vitestCase
