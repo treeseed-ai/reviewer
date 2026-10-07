@@ -44,6 +44,9 @@ workflow:
   - id: selected-output-native
     action: {verifier: reviewer.prerequisites.selected-output-native}
     expect: {status: passed}
+  - id: selected-failure-unit
+    action: {verifier: reviewer.prerequisites.selected-failure-unit}
+    expect: {status: passed}
   - id: native-output
     action: {verifier: reviewer.prerequisites.native-output}
     expect: {status: passed}

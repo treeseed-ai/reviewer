@@ -71,6 +71,11 @@ verifiers:
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/integration/guarantee-prerequisites.test.ts
     testName: reads exact selected native Vitest report bytes despite child output and retains actual failed selections
+  reviewer.prerequisites.selected-failure-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantee-command.test.ts
+    testName: retains only bounded selected Vitest failure classification and owning source position without assertion values or foreign stacks
   reviewer.prerequisites.native-output:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
