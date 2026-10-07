@@ -9,6 +9,7 @@ import { createRequire } from 'node:module';
 import { parse } from 'yaml';
 import { acceptanceCriteria, acceptanceCoverage, type AcceptanceBinding } from './acceptance-spec.ts';
 import { runPrerequisites, ownerTestCommand, custodyDiagnostics } from './prerequisites.ts';
+import { selectedVitestFailure } from './safe-cli-failure.ts';
 import type { GuaranteeDiagnostic, GuaranteePlanEntry, GuaranteePlanReport, GuaranteeRunReport, GuaranteeRunStep, GuaranteeRunStatus, GuaranteeVerifierDefinition } from '@treeseed/sdk/guarantees';
 
 type Row = Record<string, unknown>;
@@ -197,10 +198,12 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 		try {
 			// Child operations may inherit stdout; only Vitest's own report is assertion evidence.
 			const report = JSON.parse(destination ? readFileSync(destination, 'utf8') : result.stdout) as { success: boolean; numPassedTests: number; numFailedTests: number;
-				testResults: Array<{ assertionResults: Array<{ title: string; status: string; duration?: number; failure?: unknown }> }> };
+				testResults: Array<{ assertionResults: Array<{ title: string; status: string; duration?: number; failure?: unknown; failureMessages?: unknown }> }> };
 			observed = report.testResults.flatMap(file => file.assertionResults).filter(check => check.title === testName)
 				.map(check => ({ title: check.title, status: check.status, duration: check.duration ?? Number.NaN,
-					...(check.failure ? { failure: check.failure } : {}) }));
+					...(binding.definition.kind === 'vitestCase' && check.status === 'failed'
+						? { failure: selectedVitestFailure(check.failureMessages, relative(binding.root, inside(binding.root, testFile)), inside(binding.root, testFile)) }
+						: binding.definition.kind === 'nodeTestCase' && check.failure ? { failure: check.failure } : {}) }));
 			passed = result.status === 0 && report.success === true && Number.isInteger(report.numPassedTests)
 				&& report.numPassedTests > 0 && report.numFailedTests === 0 && observed.length === report.numPassedTests
 				&& observed.every(check => check.status === 'passed' && Number.isFinite(check.duration) && check.duration >= 0);
