@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { candidate, custodyDiagnostics, fullSuitePassed, ownerTestCommand, participatingOwners } from '../../../src/verifiers/guarantees/prerequisites.ts';
-import type { LocalGuaranteePlan } from '../../../src/verifiers/guarantees/command.ts';
+import { planLocalGuarantees, type LocalGuaranteePlan } from '../../../src/verifiers/guarantees/command.ts';
 
 const report = () => ({ success: true, numTotalTests: 2, numPassedTests: 2, numFailedTests: 0,
 	numPendingTests: 0, numTodoTests: 0, numFailedTestSuites: 0, numPendingTestSuites: 0,
@@ -253,4 +253,21 @@ it('rejects ambiguous native YAML identities instead of preferring an npm projec
 		}
 		expect(()=>participatingOwners(plan,workspace),mode).toThrow();
 	}
+});
+
+it('discovers a declared native root beside companion packages and binds only its unique existing package identity',()=>{
+ const root=mkdtempSync(resolve(tmpdir(),'prerequisite-native-root-'));roots.push(root);
+ mkdirSync(resolve(root,'packages/companion'),{recursive:true});mkdirSync(resolve(root,'guarantees'));
+ writeFileSync(resolve(root,'scene.ts'),'export const fixture=true;');
+ writeFileSync(resolve(root,'treeseed.package.yaml'),'id: native-owner\nverify: {local: verify.sh}\n');
+ writeFileSync(resolve(root,'guarantees/native.guarantee.yaml'),'id: native-root\nownerPackage: native-owner\napi: {verifierRefs: [native.scene]}\n');
+ writeFileSync(resolve(root,'guarantees/native.verifiers.yaml'),'verifiers:\n  native.scene: {kind: nodeTestCase, ownerPackage: native-owner, testFile: scene.ts, testName: fixture}\n');
+ const companion=resolve(root,'packages/companion/package.json');writeFileSync(companion,JSON.stringify({name:'@fixture/companion'}));
+ const plan=planLocalGuarantees(root,['native-root']);expect(plan.ok).toBe(true);expect(plan.verifiers['native.scene']!.root).toBe(root);expect(participatingOwners(plan,root)).toEqual([root]);
+ for(const metadata of ['id: native-owner\n','id: ""\n','id: [native-owner]\n']){
+  writeFileSync(resolve(root,'packages/companion/treeseed.package.yaml'),metadata);
+  if(metadata==='id: native-owner\n'){rmSync(companion);expect(()=>participatingOwners(plan,root)).toThrow();writeFileSync(companion,JSON.stringify({name:'native-owner'}));expect(()=>participatingOwners(plan,root)).toThrow();}
+  else{writeFileSync(companion,JSON.stringify({name:'@fixture/companion'}));expect(participatingOwners(plan,root)).toEqual([root]);}
+ }
+ rmSync(resolve(root,'packages/companion/treeseed.package.yaml'));writeFileSync(resolve(root,'treeseed.package.yaml'),'id: ""\nverify: {local: verify.sh}\n');expect(()=>participatingOwners(plan,root)).toThrow();
 });
