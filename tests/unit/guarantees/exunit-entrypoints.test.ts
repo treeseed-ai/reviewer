@@ -15,10 +15,10 @@ it('resolves one complete native Elixir entrypoint from the existing owner verif
 	expect(ownerTestCommand(root)).toBe('elixir scripts/verify.exs');
 });
 
-it('rejects missing malformed filtered and shell native declarations without borrowing an npm identity',()=>{
+it('rejects missing malformed filtered and shell expressions without borrowing an npm identity',()=>{
 	const root=fixture();
 	for(const value of ['{}','verify: null','verify: {local: null}','verify: {local: [verify.exs]}',
-		'verify: {local: verify.sh}','verify: {local: "verify.exs --only selected"}',
+		'verify: {local: "verify.sh --only selected"}','verify: {local: "verify.exs --only selected"}',
 		'verify: {local: "elixir verify.exs"}','verify: {local: "verify.exs && true"}',
 		'verify: {local: /tmp/verify.exs}','verify: {local: -verify.exs}']) {
 		writeFileSync(resolve(root,'treeseed.package.yaml'),value);

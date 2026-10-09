@@ -42,6 +42,18 @@ it('resolves the declared complete test entrypoint without filters and rejects c
 	}
 });
 
+it('resolves declared native shell and Elixir whole suites without admitting arguments or shell expressions', () => {
+	const root=mkdtempSync(resolve(tmpdir(),'prerequisite-native-script-'));roots.push(root);
+	for(const [path,command] of [['scripts/verification/test-all.sh','bash scripts/verification/test-all.sh'],['verify.exs','elixir verify.exs']]) {
+		writeFileSync(resolve(root,'treeseed.package.yaml'),`verify: {local: ${JSON.stringify(path)}}\n`);
+		expect(ownerTestCommand(root)).toBe(command);
+	}
+	for(const path of ['',null,42,'./verify.sh --only selected','verify.sh && true','verify.sh; true','/tmp/verify.sh','../verify.sh','verify.js']) {
+		writeFileSync(resolve(root,'treeseed.package.yaml'),`verify: {local: ${JSON.stringify(path)}}\n`);
+		expect(()=>ownerTestCommand(root)).toThrow();
+	}
+});
+
 it('compares both exact HEAD and source bytes without disclosing source contents', () => {
 	const root = mkdtempSync(resolve(tmpdir(),'prerequisite-custody-')); roots.push(root);
 	writeFileSync(resolve(root,'candidate.ts'),'private source content');

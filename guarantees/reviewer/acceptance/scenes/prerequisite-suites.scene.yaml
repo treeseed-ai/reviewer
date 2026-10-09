@@ -263,3 +263,15 @@ workflow:
   - id: exact-section-native
     action: {verifier: reviewer.acceptance.exact-section-native}
     expect: {status: passed}
+  - id: shell-declaration
+    action: {verifier: reviewer.prerequisites.shell-declaration}
+    expect: {status: passed}
+  - id: shell-complete
+    action: {verifier: reviewer.prerequisites.shell-complete}
+    expect: {status: passed}
+  - id: shell-denial
+    action: {verifier: reviewer.prerequisites.shell-denial}
+    expect: {status: passed}
+  - id: shell-entrypoint-denial
+    action: {verifier: reviewer.prerequisites.shell-entrypoint-denial}
+    expect: {status: passed}

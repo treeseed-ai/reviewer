@@ -120,7 +120,7 @@ verifiers:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
-    testName: rejects missing malformed filtered and shell native declarations without borrowing an npm identity
+    testName: rejects missing malformed filtered and shell expressions without borrowing an npm identity
   reviewer.prerequisites.exunit-complete:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
@@ -448,3 +448,23 @@ verifiers:
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/integration/acceptance-sections.test.ts
     testName: packaged native exact-heading selection enforces shared parent obligations before staged execution while retaining future children
+  reviewer.prerequisites.shell-declaration:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: resolves declared native shell and Elixir whole suites without admitting arguments or shell expressions
+  reviewer.prerequisites.shell-complete:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: executes declared shell whole suites with real native assertions before scenes and retains failed attempts on fresh retry
+  reviewer.prerequisites.shell-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: blocks declared shell skipped excluded empty missing truncated mixed interrupted and mutating native reports before scenes
+  reviewer.prerequisites.shell-entrypoint-denial:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/exunit-prerequisites.test.ts
+    testName: preflights missing directory and escaped shell whole-suite entrypoints without launching a native subprocess

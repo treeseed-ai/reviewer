@@ -15,9 +15,10 @@ const row = (value: unknown): Row => value && typeof value === 'object' && !Arra
 export function ownerTestCommand(root: string): string {
 	if (!existsSync(resolve(root,'package.json'))) {
 		const declared = row(row(parse(readFileSync(resolve(root,'treeseed.package.yaml'),'utf8'))).verify).local;
-		if (typeof declared !== 'string' || !/^[\w.][\w./-]*\.exs$/u.test(declared))
-			throw new Error('Full native prerequisite reporting requires one declared Elixir verification entrypoint.');
-		return `elixir ${declared}`;
+		if (typeof declared !== 'string' || !/^[\w.][\w./-]*\.(?:exs|sh)$/u.test(declared)
+			|| declared.split('/').includes('..'))
+			throw new Error('Full native prerequisite reporting requires one declared native verification entrypoint.');
+		return `${declared.endsWith('.exs') ? 'elixir' : 'bash'} ${declared}`;
 	}
 	const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as { scripts?: Record<string, string> };
 	const scripts = manifest.scripts ?? {}, visited = new Set<string>();
@@ -38,14 +39,15 @@ function fullTestEntrypoint(root: string) {
 	const vitest=/^vitest run(?: --config (\S+))?$/u.exec(script);
 	const native=/^(?:npm run [\w:-]+ && )?node(?: --import tsx)? ([\w./-]+\.(?:ts|js|mjs))$/u.exec(script);
 	const elixir=!existsSync(resolve(root,'package.json')) ? /^elixir ([\w./-]+\.exs)$/u.exec(script) : null;
-	if(!vitest&&!native&&!elixir)throw new Error('Full prerequisite reporting requires an unfiltered declared entrypoint.');
-	const selected=vitest?.[1]??native?.[1]??elixir?.[1];
+	const shell=!existsSync(resolve(root,'package.json')) ? /^bash ([\w./-]+\.sh)$/u.exec(script) : null;
+	if(!vitest&&!native&&!elixir&&!shell)throw new Error('Full prerequisite reporting requires an unfiltered declared entrypoint.');
+	const selected=vitest?.[1]??native?.[1]??elixir?.[1]??shell?.[1];
 	const path=selected?realpathSync(resolve(root,selected)):null;
 	const local=path?relative(root,path):'';
 	if(local==='..'||local.startsWith(`..${sep}`)||local.startsWith(sep))
 		throw new Error('Full prerequisite entrypoint escapes its owner.');
 	if(path)readFileSync(path); // A directory or unreadable entrypoint is not an executable suite.
-	return {config:vitest?path:null,native:Boolean(native),elixir:elixir?path:null};
+	return {config:vitest?path:null,native:Boolean(native),elixir:elixir?path:null,shell:shell?path:null};
 }
 
 export function fullSuitePassed(value: unknown): boolean {
@@ -211,12 +213,12 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 		try {
 			custody = candidate(root);
 			if(!admitted)throw new Error('A participating full-suite entrypoint is unavailable.');
-			const {config,native,elixir}=entrypoints.get(root)!;
+			const {config,native,elixir,shell}=entrypoints.get(root)!;
 			let result, report;
-			if (elixir) {
+			if (elixir || shell) {
 				// The owner's original whole-suite command emits the existing assertion report.
 				// Never infer assertions from exit zero or recover JSON from mixed stdout.
-				command = ['elixir',elixir];
+				command = elixir ? ['elixir',elixir] : ['bash',shell!];
 				result = spawnSync(command[0]!,command.slice(1),{cwd:root,encoding:'utf8',timeout:1_200_000,maxBuffer:32*1024*1024});
 				status = result.status; signal = result.signal;
 				report = JSON.parse(result.stdout);
