@@ -190,11 +190,11 @@ export function participatingOwners(plan: LocalGuaranteePlan, workspace: string)
 }
 
 /** Complete declared owner suites, once per invocation, before any scene starts. */
-export function runPrerequisites(plan: LocalGuaranteePlan, output: string, workspace: string) {
+export function runPrerequisites(plan: LocalGuaranteePlan, output: string, workspace: string, executingOwner?:string) {
 	const receipts: string[] = [], diagnostics: string[] = [];
 	const candidates = new Map<string, ReturnType<typeof candidate>>();
 	let roots: string[];
-	try { roots = participatingOwners(plan,workspace); }
+	try { roots = [...new Set([...participatingOwners(plan,workspace),...(executingOwner?[executingOwner]:[])])]; }
 	catch { return {receipts,candidates,diagnostics:['Participating prerequisite owner composition is missing, malformed or ambiguous.']}; }
 	// Identify every supported whole-suite boundary before spending capacity on any owner.
 	const entrypoints=new Map<string,ReturnType<typeof fullTestEntrypoint>>();

@@ -31,13 +31,14 @@ export default async function* nativeReporter(source: AsyncIterable<{type: strin
 }
 
 async function namedCase(): Promise<void> {
-const [file, name] = process.argv.slice(2);
+const [file, name, installedPackages] = process.argv.slice(2);
 if (!file || !name) throw new Error('An exact test file and name are required.');
 const pattern = `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
 const assertions: Array<{ title: string; status: string; duration: number; failure?: { code: string; file: string; line: number; column: number; criterion?: string; cliFailure?: string } }> = [];
 let failures = 0;
 const loader = createRequire(import.meta.url).resolve('tsx');
-for await (const event of run({ files: [file], testNamePatterns: [pattern], execArgv: ['--import', loader] })) {
+const fence=installedPackages?`data:text/javascript,${encodeURIComponent(`import{registerHooks}from'node:module';import{fileURLToPath}from'node:url';import{relative,isAbsolute,sep,resolve}from'node:path';import{realpathSync}from'node:fs';registerHooks({resolve(specifier,context,next){const result=next(specifier,context);if(result.url.startsWith('file:')){const absolute=fileURLToPath(result.url),path=relative(${JSON.stringify(installedPackages)},realpathSync(absolute));if(realpathSync(absolute)!==resolve(absolute)||path==='..'||path.startsWith('..'+sep)||isAbsolute(path))throw new Error('Installed verifier cannot import assets outside installed packages.');}return result;}});`)}`:undefined;
+for await (const event of run({ files: [file], testNamePatterns: [pattern], execArgv: [...(fence?['--import',fence]:[]),'--import', loader] })) {
 	if (event.type === 'test:fail') failures++;
 	if ((event.type === 'test:pass' || event.type === 'test:fail') && event.data.name === name) {
 		const error = event.type === 'test:fail' ? event.data.details.error : undefined;

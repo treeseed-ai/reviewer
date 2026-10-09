@@ -24,6 +24,20 @@ test names, skipped tests, unavailable services and incomplete evidence cannot
 pass. Failed native checks retain error classification and source location,
 never raw credential-bearing test output.
 
+For installed native acceptance, invoke the installed binary with
+`--installed-packages /absolute/isolated-install/node_modules`. Keep each actual
+owner archive beside `node_modules`, using the filename from its retained native
+`npm pack --json` output, and install those archives with production dependencies
+and scripts disabled. The source workspace still supplies exact Git candidates
+and complete suites. Reviewer compares native package inventory, archive bytes,
+installed files, selected definitions and executable assets; its existing run
+bundle retains archive SHA256 and installed-byte evidence. `--plan` checks the
+same installed custody without running suites or scenes. Missing archives,
+altered assets, extra files, symlinks, source-runner fallback and verifier imports
+outside the installation fail closed. Installed scene execution requires native
+Node verifiers. The executing package participates in fresh source prerequisites
+without adding its unrelated browser companion dependencies.
+
 Every invocation runs complete declared owner unit/integration suites before
 any coded scene, once per owner, with ongoing exact Git/source custody.
 Canonical unfiltered Vitest entrypoints and owner-contained native Node runners

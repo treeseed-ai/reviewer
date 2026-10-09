@@ -1,6 +1,31 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.installed-location-unit:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/unit/guarantee-command.test.ts
+    testName: accepts one explicit absolute installed package location and rejects missing relative or repeated locations
+  reviewer.prerequisites.installed-assets-unit:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/unit/guarantees/installed-custody.test.ts
+    testName: matches actual npm archive and production installation bytes and rejects changed missing redirected and unarchived assets
+  reviewer.prerequisites.installed-missing-native:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/installed-custody.test.ts
+    testName: blocks missing installed owner custody before source suites or source scene fallback
+  reviewer.prerequisites.installed-runner-native:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/installed-custody.test.ts
+    testName: holds and executes the explicitly supplied runner source whole suite once without traversing unrelated companion targets
+  reviewer.prerequisites.installed-production-native:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/installed-custody.test.ts
+    testName: executes actual production-installed Reviewer and owner archives and retains denied checkout imports and missing-helper failures before exact retry
   reviewer.acceptance.scene-order-unit:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
