@@ -150,7 +150,9 @@ export function participatingOwners(plan: LocalGuaranteePlan, workspace: string)
 			index(packages,row(JSON.parse(readFileSync(resolve(root,'package.json'),'utf8'))).name,root);
 		const path = resolve(root,'treeseed.package.yaml');
 		if (!existsSync(path)) continue;
-		const development = row(row(parse(readFileSync(path,'utf8'))).development);
+		const metadata=row(parse(readFileSync(path,'utf8')));
+		if(!existsSync(resolve(root,'package.json')))index(packages,metadata.id,root);
+		const development = row(metadata.development);
 		documents.set(root,development); index(projects,row(development.project).id,root);
 	}
 	const unique = (map: Map<string,string[]>, id: string) => {

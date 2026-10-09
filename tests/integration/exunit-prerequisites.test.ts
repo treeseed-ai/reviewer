@@ -34,7 +34,11 @@ function invoke(root:string,id:string) {
 it('executes declared shell whole suites with real native assertions before scenes and retains failed attempts on fresh retry',()=>{
 	const root=fixture();
 	writeFileSync(resolve(root,'verify.sh'),'#!/usr/bin/env bash\nset -euo pipefail\nexec elixir verify.exs\n');
-	writeFileSync(resolve(root,'treeseed.package.yaml'),'verify: {local: verify.sh}\n');
+	writeFileSync(resolve(root,'treeseed.package.yaml'),'id: native-owner\nverify: {local: verify.sh}\n');
+	mkdirSync(resolve(root,'packages/companion'),{recursive:true});
+	writeFileSync(resolve(root,'packages/companion/package.json'),JSON.stringify({name:'@fixture/unselected-companion',scripts:{test:'unavailable'}}));
+	writeFileSync(resolve(root,'guarantees/native.guarantee.yaml'),'id: native\nownerPackage: native-owner\napi: {verifierRefs: [native.scene]}\n');
+	expect(planLocalGuarantees(root,['native']).ok).toBe(true);
 	let failed:Buffer|undefined;
 	for(const [id,mode,passed] of [['shell-first','pass',true],['shell-failed','failure',false],['shell-retry','pass',true]] as const) {
 		writeFileSync(resolve(root,'verify.exs'),exunitSuite(mode));

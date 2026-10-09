@@ -493,3 +493,8 @@ verifiers:
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/integration/exunit-prerequisites.test.ts
     testName: preflights missing directory and escaped shell whole-suite entrypoints without launching a native subprocess
+  reviewer.prerequisites.native-root-owner:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/unit/guarantees/prerequisites.test.ts
+    testName: discovers a declared native root beside companion packages and binds only its unique existing package identity

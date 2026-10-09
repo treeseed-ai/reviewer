@@ -2,6 +2,9 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: native-root-owner
+    action: { verifier: reviewer.prerequisites.native-root-owner }
+    expect: { status: passed }
   - id: scene-order-unit
     action: {verifier: reviewer.acceptance.scene-order-unit}
     expect: {status: passed}
