@@ -35,16 +35,31 @@ it('executes declared shell whole suites with real native assertions before scen
 	const root=fixture();
 	writeFileSync(resolve(root,'verify.sh'),'#!/usr/bin/env bash\nset -euo pipefail\nexec elixir verify.exs\n');
 	writeFileSync(resolve(root,'treeseed.package.yaml'),'verify: {local: verify.sh}\n');
+	let failed:Buffer|undefined;
 	for(const [id,mode,passed] of [['shell-first','pass',true],['shell-failed','failure',false],['shell-retry','pass',true]] as const) {
 		writeFileSync(resolve(root,'verify.exs'),exunitSuite(mode));
 		const {report,receipt}=invoke(root,id);
 		expect(report.ok,JSON.stringify(receipt)).toBe(passed);
 		expect(receipt).toMatchObject({passed,exitCode:passed?0:2,checks:{total:2,passed:passed?2:1,skipped:0,todo:0}});
 		expect(receipt.command).toEqual(['bash',resolve(root,'verify.sh')]);
+		if(!passed)failed=readFileSync(resolve(root,'.treeseed/guarantees/runs/shell-failed/report.json'));
 	}
-	const failed=readFileSync(resolve(root,'.treeseed/guarantees/runs/shell-failed/report.json'),'utf8');
-	expect(JSON.parse(failed).ok).toBe(false);
+	expect(failed).toBeDefined();
+	expect(readFileSync(resolve(root,'.treeseed/guarantees/runs/shell-failed/report.json'))).toEqual(failed);
+	expect(JSON.parse(failed!.toString()).ok).toBe(false);
 	expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).toBe('suite\nscene\nsuite\nsuite\nscene\n');
+});
+
+it('preflights missing directory and escaped shell whole-suite entrypoints without launching a native subprocess',()=>{
+	for(const mode of ['missing','directory','escaped']) {
+		const root=fixture(),path=resolve(root,'verify.sh');
+		if(mode==='directory')mkdirSync(path);
+		if(mode==='escaped')symlinkSync(resolve(fixture(),'verify.exs'),path);
+		writeFileSync(resolve(root,'treeseed.package.yaml'),'verify: {local: verify.sh}\n');
+		const {report,receipt}=invoke(root,mode);
+		expect(report.ok,mode).toBe(false);expect(receipt.command,mode).toEqual([]);
+		expect(receipt.checks,mode).toBeNull();expect(existsSync(resolve(root,'.treeseed/order')),mode).toBe(false);
+	}
 });
 
 it('blocks declared shell skipped excluded empty missing truncated mixed interrupted and mutating native reports before scenes',()=>{
