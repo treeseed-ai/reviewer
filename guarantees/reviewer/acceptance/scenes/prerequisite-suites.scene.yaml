@@ -275,3 +275,18 @@ workflow:
   - id: shell-entrypoint-denial
     action: {verifier: reviewer.prerequisites.shell-entrypoint-denial}
     expect: {status: passed}
+  - id: installed-location-unit
+    action: {verifier: reviewer.prerequisites.installed-location-unit}
+    expect: {status: passed}
+  - id: installed-assets-unit
+    action: {verifier: reviewer.prerequisites.installed-assets-unit}
+    expect: {status: passed}
+  - id: installed-missing-native
+    action: {verifier: reviewer.prerequisites.installed-missing-native}
+    expect: {status: passed}
+  - id: installed-runner-native
+    action: {verifier: reviewer.prerequisites.installed-runner-native}
+    expect: {status: passed}
+  - id: installed-production-native
+    action: {verifier: reviewer.prerequisites.installed-production-native}
+    expect: {status: passed}

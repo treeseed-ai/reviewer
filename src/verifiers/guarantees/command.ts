@@ -3,12 +3,13 @@ import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve, relative, sep } from 'node:path';
+import { isAbsolute, resolve, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { parse } from 'yaml';
 import { acceptanceCriteria, acceptanceCoverage, type AcceptanceBinding } from './acceptance-spec.ts';
-import { runPrerequisites, ownerTestCommand, custodyDiagnostics } from './prerequisites.ts';
+import { runPrerequisites, ownerTestCommand, custodyDiagnostics, participatingOwners, candidate } from './prerequisites.ts';
+import { inspectInstalledOwner, installedCustodyDiagnostics, installedDirectory, installedRunnerSource, type InstalledOwner } from './installed-custody.ts';
 import { selectedVitestFailure } from './safe-cli-failure.ts';
 import type { GuaranteeDiagnostic, GuaranteePlanEntry, GuaranteePlanReport, GuaranteeRunReport, GuaranteeRunStep, GuaranteeRunStatus, GuaranteeVerifierDefinition } from '@treeseed/sdk/guarantees';
 
@@ -26,7 +27,7 @@ export function verifierTimeout(value: unknown): number {
 	return value;
 }
 export function localRequestDiagnostics(args: string[]): GuaranteeDiagnostic[] {
-	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment', '--acceptance-spec', '--acceptance-section', '--acceptance-exact-section']);
+	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment', '--acceptance-spec', '--acceptance-section', '--acceptance-exact-section', '--installed-packages']);
 	const errors = args.filter(arg => arg.startsWith('--') && !supported.has(arg))
 		.map(arg => diagnostic(`Unsupported local component option ${arg}; no evidence was executed.`));
 	const environment = args.indexOf('--environment');
@@ -34,6 +35,9 @@ export function localRequestDiagnostics(args: string[]): GuaranteeDiagnostic[] {
 		errors.push(diagnostic('Local component tests cannot attest a staging or production environment.'));
 	if ((args.includes('--acceptance-section') || args.includes('--acceptance-exact-section')) && !args.includes('--acceptance-spec'))
 		errors.push(diagnostic('Acceptance section selection requires the original complete acceptance specification.'));
+	const locations=args.flatMap((arg,index)=>arg==='--installed-packages'?[args[index+1]??'']:[]);
+	if(locations.length>1||locations.some(path=>!isAbsolute(path)))
+		errors.push(diagnostic('Installed packages require one explicit absolute directory.'));
 	return errors;
 }
 function files(root: string, suffix: string): string[] {
@@ -150,7 +154,43 @@ export function planLocalGuarantees(root: string, ids: string[]): LocalGuarantee
 	plan.ok = plan.diagnostics.length === 0;
 	return plan;
 }
-export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId: string = randomUUID()) {
+export function prepareInstalledExecution(root:string,plan:LocalGuaranteePlan,installedPackages:string|undefined,output?:string) {
+	const installedOwners:Array<InstalledOwner&ReturnType<typeof candidate>>=[], installedEvidence:string[]=[], installedErrors:string[]=[];
+	let executingOwner:string|undefined;
+	if(plan.ok&&installedPackages!==undefined) {
+		try {
+			installedDirectory(installedPackages,root);
+			executingOwner=installedRunnerSource(root,installedPackages,fileURLToPath(import.meta.url));
+			for(const sourceRoot of [...new Set([...participatingOwners(plan,root),executingOwner])]) {
+				if(!existsSync(resolve(sourceRoot,'package.json')))continue;
+				const held=candidate(sourceRoot), owner=inspectInstalledOwner(sourceRoot,installedPackages);
+				if(JSON.stringify(candidate(sourceRoot))!==JSON.stringify(held))throw new Error('Installed source candidate changed during archive inspection.');
+				installedOwners.push({...owner,...held});
+				if(output) {const path=resolve(output,'evidence',`installed-${createHash('sha256').update(sourceRoot).digest('hex')}.json`);
+				writeFileSync(path,JSON.stringify({...held,...owner},null,2));installedEvidence.push(relative(output,path));}
+			}
+			for(const entry of plan.entries) {
+				const manifest=resolve(root,entry.sourcePath), owner=installedOwners.find(owner=>manifest.startsWith(owner.sourceRoot+sep));
+				if(!owner)throw new Error('Installed guarantee owner archive is unavailable.');
+				const scene=entry.manifest.scene as {manifest?:string}|undefined;
+				for(const path of [relative(owner.sourceRoot,manifest),...(scene?.manifest?[scene.manifest]:[])])
+					if(!owner.files.some(file=>file.path===path))throw new Error('Installed guarantee or scene definition is missing.');
+				for(const ref of entry.verifierRefs) {
+					const binding=plan.verifiers[ref]!, definition=binding.definition, installed=installedOwners.find(owner=>owner.sourceRoot===binding.root);
+					if(!installed||definition.kind!=='nodeTestCase'||!installed.files.some(file=>file.path===definition.testFile))
+						throw new Error('Installed execution requires the selected native asset from its owner archive.');
+					const registries=files(resolve(binding.root,'guarantees'),'.verifiers.yaml').filter(path=>{
+						const registry=parse(readFileSync(path,'utf8')) as {verifiers?:Record<string,unknown>};return Object.hasOwn(registry.verifiers??{},ref);
+					});
+					if(registries.length!==1||!installed.files.some(file=>file.path===relative(binding.root,registries[0]!)))
+						throw new Error('Installed selected verifier definition is missing or ambiguous.');
+				}
+			}
+		} catch {installedErrors.push('Installed package archive, source identity, executable assets or runner custody is unavailable.');}
+	}
+	return {installedOwners,installedEvidence,installedErrors,executingOwner};
+}
+export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId: string = randomUUID(), installedPackages?:string) {
 	if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(runId)) throw new Error('Unsafe guarantee run ID.');
 	const output = resolve(root, '.treeseed/guarantees/runs', runId);
 	if (existsSync(output)) throw new Error('Guarantee evidence is immutable; run ID already exists.');
@@ -159,7 +199,14 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	const scope = plan.entries[0]?.scope ?? 'local-component-tests';
 	const checks = new Map<string, { status: 'passed' | 'failed' | 'blocked'; evidence: string[]; diagnostics: GuaranteeDiagnostic[] }>();
 	const blockedGuarantees = new Set<string>(), passedGuarantees = new Set<string>();
-	const prerequisites = plan.ok ? runPrerequisites(plan, output, root) : { receipts: [], diagnostics: [], candidates: new Map() };
+	const {installedOwners,installedEvidence,installedErrors,executingOwner}=prepareInstalledExecution(root,plan,installedPackages,output);
+	const prerequisites = plan.ok&&!installedErrors.length ? runPrerequisites(plan, output, root,executingOwner) : { receipts: [] as string[], diagnostics: [] as string[], candidates: new Map<string,ReturnType<typeof candidate>>() };
+	prerequisites.receipts.push(...installedEvidence);prerequisites.diagnostics.push(...installedErrors,...installedCustodyDiagnostics(installedOwners));
+	for(const owner of installedOwners) {
+		const held=prerequisites.candidates.get(owner.sourceRoot);
+		if(!held||held.commit!==owner.commit||held.sourceDigest!==owner.sourceDigest)
+			prerequisites.diagnostics.push(`${owner.name}: Installed archive source candidate changed before complete prerequisites.`);
+	}
 	const prerequisiteDiagnostics = prerequisites.diagnostics.map(diagnostic);
 	if (plan.ok && !prerequisiteDiagnostics.length) for (const entry of plan.entries) {
 		const dependencies = entry.manifest.dependencies as { guarantees?: string[] } | undefined;
@@ -171,12 +218,13 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 			continue;
 		}
 		if (checks.has(ref)) continue;
-		const custodyErrors = custodyDiagnostics(prerequisites.candidates).map(diagnostic);
+		const custodyErrors = [...custodyDiagnostics(prerequisites.candidates),...installedCustodyDiagnostics(installedOwners)].map(diagnostic);
 		if (custodyErrors.length) {
 			checks.set(ref, { status: 'blocked', evidence: [], diagnostics: custodyErrors });
 			continue;
 		}
-		const binding = plan.verifiers[ref]!;
+		const sourceBinding = plan.verifiers[ref]!;
+		const binding = installedPackages ? {...sourceBinding,root:installedOwners.find(owner=>owner.sourceRoot===sourceBinding.root)!.root} : sourceBinding;
 		if (binding.definition.kind !== 'vitestCase' && binding.definition.kind !== 'nodeTestCase') continue;
 		const { testFile, testName } = binding.definition;
 		const reportPath = resolve(output, 'evidence', `${createHash('sha256').update(ref).digest('hex')}.json`);
@@ -190,7 +238,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 			? [inside(binding.root, 'node_modules/vitest/vitest.mjs'), 'run', ...(config ? ['--config', inside(binding.root, config)] : []), testFile,
 				'-t', `^.*${testName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, '--reporter=json', `--outputFile=${destination}`]
 			: [...(import.meta.url.endsWith('.ts') ? ['--import', createRequire(import.meta.url).resolve('tsx')] : []),
-				fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`, import.meta.url)), inside(binding.root, testFile), testName];
+				fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`, import.meta.url)), inside(binding.root, testFile), testName,...(installedPackages?[realpathSync(installedPackages)]:[])];
 		const timeoutMs = verifierTimeout(Reflect.get(binding.definition, 'timeoutMs'));
 		const result = spawnSync(process.execPath, args, { cwd: binding.root, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 });
 		let passed = false;
@@ -208,7 +256,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 				&& report.numPassedTests > 0 && report.numFailedTests === 0 && observed.length === report.numPassedTests
 				&& observed.every(check => check.status === 'passed' && Number.isFinite(check.duration) && check.duration >= 0);
 		} catch { /* Missing/malformed evidence fails closed. */ }
-		const afterCustodyErrors = custodyDiagnostics(prerequisites.candidates).map(diagnostic);
+		const afterCustodyErrors = [...custodyDiagnostics(prerequisites.candidates),...installedCustodyDiagnostics(installedOwners)].map(diagnostic);
 		passed = passed && !afterCustodyErrors.length;
 		writeFileSync(reportPath, JSON.stringify({ verifierId: ref, scope, testFile, testName, sourceDigest,
 			timeoutMs, processErrorCode: result.error && 'code' in result.error ? result.error.code : null,
@@ -253,7 +301,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
 	}
 	plan.diagnostics.push(...localRequestDiagnostics(process.argv.slice(2)));
 	plan.ok = plan.diagnostics.length === 0;
-	const report = process.argv.includes('--plan') ? plan : runLocalGuarantees(root, plan, option('run-id') || randomUUID());
+	if(process.argv.includes('--plan')&&process.argv.includes('--installed-packages')) {
+		const custody=prepareInstalledExecution(root,plan,option('installed-packages'));
+		plan.diagnostics.push(...[...custody.installedErrors,...installedCustodyDiagnostics(custody.installedOwners)].map(diagnostic));
+		plan.ok=plan.diagnostics.length===0;
+	}
+	const report = process.argv.includes('--plan') ? plan : runLocalGuarantees(root, plan, option('run-id') || randomUUID(),process.argv.includes('--installed-packages')?option('installed-packages'):undefined);
 	process.stdout.write(`${JSON.stringify(report)}\n`);
 	if (!report.ok) process.exitCode = 1;
 }
