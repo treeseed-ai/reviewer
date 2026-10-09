@@ -58,7 +58,7 @@ function inside(root: string, path: string): string {
 }
 export function planLocalGuarantees(root: string, ids: string[]): LocalGuaranteePlan {
 	const packageRoots = existsSync(resolve(root, 'packages'))
-		? readdirSync(resolve(root, 'packages'), { withFileTypes: true }).filter(e => e.isDirectory()).map(e => resolve(root, 'packages', e.name))
+		? [...(existsSync(resolve(root,'guarantees')) ? [root] : []),...readdirSync(resolve(root, 'packages'), { withFileTypes: true }).filter(e => e.isDirectory()).map(e => resolve(root, 'packages', e.name))]
 		: [root];
 	const plan: LocalGuaranteePlan = { ok: false, entries: [], verifiers: {}, diagnostics: [] };
 	const fail = (message: string) => { plan.diagnostics.push(diagnostic(message)); };
