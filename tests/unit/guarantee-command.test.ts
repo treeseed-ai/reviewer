@@ -136,6 +136,12 @@ describe('package-owned guarantee execution', () => {
 		expect(localRequestDiagnostics(['--environment', 'production']).length).toBeGreaterThan(0);
 		expect(localRequestDiagnostics(['--environment', 'local', '--ids', 'proof', '--plan'])).toEqual([]);
 	});
+	it('accepts one explicit absolute installed package location and rejects missing relative or repeated locations',()=>{
+		expect(localRequestDiagnostics(['--installed-packages','/tmp/acceptance-install/node_modules','--environment','local'])).toEqual([]);
+		for(const args of [['--installed-packages'],['--installed-packages',''],['--installed-packages','relative/node_modules'],
+			['--installed-packages','--plan'],['--installed-packages','/tmp/one','--installed-packages','/tmp/two']])
+			expect(localRequestDiagnostics(args).length).toBeGreaterThan(0);
+	});
 	it('rejects an empty selection and missing contracts', () => {
 		const root = fixture();
 		expect(planLocalGuarantees(root, []).ok).toBe(false);
