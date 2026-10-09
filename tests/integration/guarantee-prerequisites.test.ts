@@ -369,9 +369,9 @@ it('retains exact discovered native source custody and blocks incomplete native 
 	const {owner,dependency,transitive,plan}=compositionFixture();
 	rmSync(resolve(dependency,'package.json'));
 	const document=JSON.parse(readFileSync(resolve(dependency,'treeseed.package.yaml'),'utf8'));
-	document.verify={local:'verify-native.sh'};
+	document.verify={local:'verify-native.py'};
 	writeFileSync(resolve(dependency,'treeseed.package.yaml'),JSON.stringify(document));
-	writeFileSync(resolve(dependency,'verify-native.sh'),"#!/bin/sh\nprintf ran > .treeseed/native-ran\nexit 0\n");
+	writeFileSync(resolve(dependency,'verify-native.py'),"print('unreported native suite')\n");
 	for(const args of [['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Declared native owner']])
 		expect(spawnSync('git',args,{cwd:dependency}).status).toBe(0);
 	const exact=candidate(dependency);
