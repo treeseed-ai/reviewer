@@ -1,13 +1,15 @@
 import {afterEach,beforeAll,expect,it} from 'vitest';
-import {copyFileSync,mkdtempSync,mkdirSync,symlinkSync,writeFileSync,readFileSync,existsSync,rmSync} from 'node:fs';
+import {cpSync,mkdtempSync,mkdirSync,symlinkSync,writeFileSync,readFileSync,existsSync,rmSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
+import {sourceRunnerFixture} from '../fixtures/source-runner.ts';
+import {roots as runnerRoots} from '../fixtures/guarantee-prerequisites.ts';
 
 const repository=resolve(import.meta.dirname,'../..');
 const roots:string[]=[];
 beforeAll(()=>{expect(spawnSync(process.execPath,['--import','tsx','scripts/build-server.ts'],{cwd:repository,encoding:'utf8'}).status).toBe(0);});
-afterEach(()=>{for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true});});
+afterEach(()=>{for(const root of [...roots.splice(0),...runnerRoots.splice(0)])rmSync(root,{recursive:true,force:true});});
 function fixture(mode='pass') {
 	const root=mkdtempSync(resolve(tmpdir(),'reviewer-native-suite-')); roots.push(root);
 	for(const dir of ['tests','.treeseed','guarantees'])mkdirSync(resolve(root,dir),{recursive:true});
@@ -31,12 +33,13 @@ function fixture(mode='pass') {
 	return root;
 }
 function invoke(root:string,id:string,source=false) {
-	const runtime=resolve(root,'.treeseed/runtime');mkdirSync(runtime,{recursive:true});
-	for(const name of ['command.js','node-case.js'])copyFileSync(resolve(repository,'dist/verifiers/guarantees',name),resolve(runtime,name));
-	const result=spawnSync(process.execPath,[...(source ? ['--import',resolve(repository,'node_modules/tsx/dist/loader.mjs'),resolve(repository,'src/verifiers/guarantees/command.ts')] : [resolve(runtime,'command.js')]),'--workspace',root,'--environment','local','--ids','native','--run-id',id],{encoding:'utf8',timeout:10_000});
+	const runner=sourceRunnerFixture(),runtime=resolve(runner,'dist/verifiers/guarantees');
+	cpSync(resolve(repository,'dist/verifiers/guarantees'),runtime,{recursive:true});
+	const result=spawnSync(process.execPath,[...(source ? ['--import',resolve(repository,'node_modules/tsx/dist/loader.mjs'),resolve(runner,'src/verifiers/guarantees/command.ts')] : [resolve(runtime,'command.js')]),'--workspace',root,'--environment','local','--ids','native','--run-id',id],{encoding:'utf8',timeout:10_000});
 	expect(result.error,'fixture subprocess must close with native terminal evidence, not hang').toBeUndefined();
 	const report=JSON.parse(result.stdout);
-	return {report,status:result.status,receipt:JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs',id,report.results[0].evidence.at(-1)),'utf8'))};
+	const receipts=report.results[0].evidence.filter((path:string)=>path.includes('prerequisite-')).map((path:string)=>JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs',id,path),'utf8')));
+	return {report,status:result.status,receipt:receipts.find((receipt:{root:string})=>receipt.root===root)};
 }
 
 it('admits complete native suites through their original build and one root reporter before scenes',()=>{

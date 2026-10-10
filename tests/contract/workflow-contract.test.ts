@@ -6,12 +6,20 @@ describe('reviewer verification workflow', () => {
   it('runs one immutable owner scene implementation and retains failure evidence', () => {
     const action = parse(readFileSync('.github/actions/run-scenes/action.yml', 'utf8'));
     const steps = action.runs.steps as Array<Record<string, any>>;
-    expect(steps.some(step => step.uses === 'actions/checkout@v4')).toBe(false);
-    expect(steps[0]!.env.REVIEWER_ACTION_PATH).toBe('${{ github.action_path }}');
-    expect(steps[0]!.run).toContain('cp -a "${REVIEWER_ACTION_PATH}/../../.." .treeseed/tools/reviewer');
+    const checkout = steps.find(step => step.uses === 'actions/checkout@v4')!;
+    expect(checkout.with).toEqual({ repository: 'treeseed-ai/reviewer', ref: '${{ github.action_ref }}',
+      path: '.treeseed/tools/reviewer', 'persist-credentials': false, 'fetch-depth': 1 });
+    expect(steps[0]!.env.REVIEWER_REF).toBe('${{ github.action_ref }}');
     expect(steps[0]!.run).toContain('test ! -e .treeseed/tools/reviewer');
     expect(steps[0]!.run).toContain('^[0-9a-f]{40}$');
     const execution = steps.find(step => step.name === 'Execute owner scenes')!;
+    expect(steps.indexOf(checkout)).toBeGreaterThan(0); expect(steps.indexOf(checkout)).toBeLessThan(steps.indexOf(execution));
+    const dependencies = steps.find(step => step.name === 'Install the executing Reviewer suite dependencies')!;
+    expect(dependencies.run).toBe('npm ci --prefix .treeseed/tools/reviewer --ignore-scripts --no-audit --no-fund');
+    expect(steps.indexOf(dependencies)).toBeLessThan(steps.indexOf(execution));
+    expect(steps.find(step => step.uses === 'erlef/setup-beam@v1')!.with).toEqual({ 'otp-version': '27.3.4.18', 'elixir-version': '1.17.3' });
+    expect(execution.run).toContain('--import ./.treeseed/tools/reviewer/node_modules/tsx/dist/loader.mjs');
+    expect(JSON.stringify(steps)).not.toContain('cp -a');
     expect(execution.run).toContain('src/verifiers/guarantees/command.ts');
     expect(execution.run).toContain('--environment local');
     expect(execution.run).not.toContain('|| true');

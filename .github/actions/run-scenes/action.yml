@@ -11,21 +11,34 @@ runs:
       shell: bash
       env:
         REVIEWER_REF: ${{ github.action_ref }}
-        REVIEWER_ACTION_PATH: ${{ github.action_path }}
       run: |
         set -euo pipefail
         [[ "${REVIEWER_REF}" =~ ^[0-9a-f]{40}$ ]] || { echo 'Reviewer scenes require an exact commit.' >&2; exit 1; }
         test -d node_modules
         test ! -e .treeseed/tools/reviewer
-        mkdir -p .treeseed/tools
-        cp -a "${REVIEWER_ACTION_PATH}/../../.." .treeseed/tools/reviewer
+    - name: Check out the exact executing Reviewer candidate
+      uses: actions/checkout@v4
+      with:
+        repository: treeseed-ai/reviewer
+        ref: ${{ github.action_ref }}
+        path: .treeseed/tools/reviewer
+        persist-credentials: false
+        fetch-depth: 1
+    - name: Install Reviewer native prerequisite toolchain
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: "27.3.4.18"
+        elixir-version: "1.17.3"
+    - name: Install the executing Reviewer suite dependencies
+      shell: bash
+      run: npm ci --prefix .treeseed/tools/reviewer --ignore-scripts --no-audit --no-fund
     - name: Execute owner scenes
       shell: bash
       env:
         SCENE_IDS: ${{ inputs.ids }}
       run: |
         set -euo pipefail
-        node --import tsx .treeseed/tools/reviewer/src/verifiers/guarantees/command.ts \
+        node --import ./.treeseed/tools/reviewer/node_modules/tsx/dist/loader.mjs .treeseed/tools/reviewer/src/verifiers/guarantees/command.ts \
           --workspace "${GITHUB_WORKSPACE}" --environment local --ids "${SCENE_IDS}" \
           --run-id "actions-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
     - name: Retain scene evidence

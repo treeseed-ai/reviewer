@@ -293,3 +293,9 @@ workflow:
   - id: installed-production-native
     action: {verifier: reviewer.prerequisites.installed-production-native}
     expect: {status: passed}
+  - id: source-runner
+    action: {verifier: reviewer.prerequisites.source-runner}
+    expect: {status: passed}
+  - id: source-runner-mutation
+    action: {verifier: reviewer.prerequisites.source-runner-mutation}
+    expect: {status: passed}
