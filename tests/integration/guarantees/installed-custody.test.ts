@@ -64,6 +64,8 @@ it('holds and executes the explicitly supplied runner source whole suite once wi
 it('executes actual production-installed Reviewer and owner archives and retains denied checkout imports and missing-helper failures before exact retry',()=>{
  const deadline=performance.now()+30_000,workDeadline=deadline-5_000;let originalFailure:unknown;
  try {
+ expect(()=>native('EXECUTE',process.execPath,['-e','Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5000)'],tmpdir(),performance.now()+25))
+  .toThrow('ACCEPTANCE_INSTALLED_EXECUTE_ETIMEDOUT');
  createProductionInstallation(workDeadline);
  const command=resolve(installed,'@treeseed/reviewer/dist/verifiers/guarantees/command.js');
  const planned=native('PLAN',process.execPath,[command,'--workspace',workspace,'--ids','proof','--plan','--installed-packages',installed],installationRoot,workDeadline);
