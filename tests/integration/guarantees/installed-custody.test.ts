@@ -2,7 +2,11 @@ import { afterEach, expect, it, onTestFailed } from 'vitest';
 import { appendFileSync, unlinkSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { fixture, roots } from '../../fixtures/guarantee-prerequisites.ts';
+import { fixture, roots, productionInstallFlags } from '../../fixtures/guarantee-prerequisites.ts';
+import { createServer } from 'node:http';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
 import { planLocalGuarantees, runLocalGuarantees } from '../../../src/verifiers/guarantees/command.ts';
 import { candidate, runPrerequisites } from '../../../src/verifiers/guarantees/prerequisites.ts';
 import { runOwnedCommand } from '../../../src/verifiers/guarantees/owned-command.ts';
@@ -53,8 +57,7 @@ function createProductionInstallation(deadline:number) {
  writeFileSync(resolve(prefix,'package.json'),JSON.stringify({private:true,type:'module',
   dependencies:Object.fromEntries(inputs.map((cwd,index)=>[JSON.parse(readFileSync(resolve(cwd,'package.json'),'utf8')).name,`file:${archives[index]}`])),
   overrides:{'@treeseed/sdk':'$@treeseed/sdk'}}));
- const installation=native('INSTALL','npm',['install','--prefix',prefix,'--omit=dev','--ignore-scripts','--package-lock=false','--no-save',
-  '--no-audit','--no-fund',...archives],installationRoot,deadline);
+ const installation=native('INSTALL','npm',['install','--prefix',prefix,...productionInstallFlags,...archives],installationRoot,deadline);
  expect(installation.status,installation.stderr).toBe(0);
  expect(dependencyBytes.size).toBeGreaterThan(0);
  for(const [path,bytes]of dependencyBytes)expect(readFileSync(resolve(prefix,'node_modules/@treeseed/sdk',path)).equals(bytes),
@@ -69,6 +72,54 @@ function createProductionInstallation(deadline:number) {
   'Reviewer must execute its own runner without installing an unused companion CLI').toBe(false);
 }
 afterEach(()=>{for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true});});
+
+it('reuses integrity checked native production dependency cache without registry revalidation or install scripts',async()=>{
+ const root=mkdtempSync(resolve(tmpdir(),'reviewer-native-install-cache-'));roots.push(root);
+ const deadline=performance.now()+30_000,workDeadline=deadline-5_000,execute=promisify(execFile);
+ const server=createServer();let metadataRequests=0,archiveRequests=0,unexpectedRequests=0,originalFailure:unknown;
+ try {
+  const source=resolve(root,'source');mkdirSync(source);
+  writeFileSync(resolve(source,'package.json'),JSON.stringify({name:'native-cached-owner',version:'1.0.0',files:['payload.txt'],scripts:{install:'node -e "process.exit(97)"'}}));
+  writeFileSync(resolve(source,'payload.txt'),'exact cached production archive bytes');
+  const pack=native('PACK','npm',['pack','--ignore-scripts','--json','--pack-destination',root],source,workDeadline);
+  expect(pack.status).toBe(0);const entries=JSON.parse(pack.stdout) as {filename:string}[];expect(entries).toHaveLength(1);
+  const archive=readFileSync(resolve(root,entries[0]!.filename));
+  const integrity='sha512-'+createHash('sha512').update(archive).digest('base64');let origin='';
+  server.on('request',(request,response)=>{
+   if(request.url==='/native-cached-owner') {
+    metadataRequests+=1;response.setHeader('Content-Type','application/json');response.setHeader('Cache-Control','public, max-age=0');
+    response.end(JSON.stringify({name:'native-cached-owner','dist-tags':{latest:'1.0.0'},versions:{'1.0.0':{name:'native-cached-owner',version:'1.0.0',
+     scripts:{install:'node -e "process.exit(97)"'},dist:{tarball:origin+'/native-cached-owner.tgz',integrity}}}}));
+   } else if(request.url==='/native-cached-owner.tgz') {archiveRequests+=1;response.setHeader('Cache-Control','public, max-age=31536000');response.end(archive);}
+   else {unexpectedRequests+=1;response.statusCode=404;response.end();}
+  });
+  await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
+  const address=server.address();expect(address&&typeof address!=='string').toBe(true);
+  if(!address||typeof address==='string')throw new Error('ACCEPTANCE_INSTALLED_CACHE_REGISTRY: Loopback native registry unavailable');
+  origin='http://127.0.0.1:'+address.port;
+  const observations=[];
+  for(const mode of ['cold','cached']) {
+   const prefix=resolve(root,mode);mkdirSync(prefix);writeFileSync(resolve(prefix,'package.json'),JSON.stringify({private:true}));
+   const before={metadataRequests,archiveRequests},remaining=Math.floor(workDeadline-performance.now());expect(remaining).toBeGreaterThan(0);
+   const flags=mode==='cold'?productionInstallFlags.filter((flag:string)=>flag!=='--prefer-offline'):productionInstallFlags;
+   await execute('npm',['install','--prefix',prefix,...flags,'--registry',origin,'--cache',resolve(root,'cache'),'--update-notifier=false','native-cached-owner@^1.0.0'],
+    {cwd:root,encoding:'utf8',timeout:remaining,killSignal:'SIGKILL',maxBuffer:8*1024*1024});
+   expect(readFileSync(resolve(prefix,'node_modules/native-cached-owner/payload.txt'),'utf8')).toBe('exact cached production archive bytes');
+   expect(JSON.parse(readFileSync(resolve(prefix,'node_modules/native-cached-owner/package.json'),'utf8'))).toMatchObject({name:'native-cached-owner',version:'1.0.0'});
+   observations.push({metadata:metadataRequests-before.metadataRequests,archives:archiveRequests-before.archiveRequests});
+  }
+  expect(observations[0]!.metadata).toBeGreaterThan(0);expect(observations[0]!.archives).toBeGreaterThan(0);
+  expect(observations[1],'ACCEPTANCE_INSTALLED_CACHE_REVALIDATION: Fresh independent installation must reuse integrity checked cached dependency').toEqual({metadata:0,archives:0});
+  expect(unexpectedRequests).toBe(0);
+ } catch(error) {originalFailure=error;throw error;}
+ finally {
+  try {
+   server.closeAllConnections();if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));
+   rmSync(root,{recursive:true,force:true});expect(existsSync(root)).toBe(false);
+   expect(performance.now(),'ACCEPTANCE_INSTALLED_CACHE_CLOSE: Original thirty-second boundary includes server and installation cleanup').toBeLessThan(deadline);
+  } catch(cleanupFailure) {throw originalFailure?new AggregateError([originalFailure,cleanupFailure],'Original native cache proof and cleanup both failed'):cleanupFailure;}
+ }
+});
 
 it('blocks missing installed owner custody before source suites or source scene fallback',()=>{
  const root=fixture();

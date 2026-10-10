@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { assetPaths, inspectInstalledOwner, installedCustodyDiagnostics, installedDirectory } from '../../../src/verifiers/guarantees/installed-custody.ts';
+import { productionInstallFlags } from '../../fixtures/guarantee-prerequisites.ts';
 
 it('matches actual npm archive and production installation bytes and rejects changed missing redirected and unarchived assets',()=>{
  const root=mkdtempSync(resolve(tmpdir(),'installed-owner-custody-')),source=resolve(root,'source'),installation=resolve(root,'installation'),installed=resolve(installation,'node_modules');
@@ -14,7 +15,7 @@ it('matches actual npm archive and production installation bytes and rejects cha
   mkdirSync(installation);
   const pack=spawnSync('npm',['pack','--ignore-scripts','--json','--pack-destination',installation],{cwd:source,encoding:'utf8'});expect(pack.status).toBe(0);
   const archive=resolve(installation,JSON.parse(pack.stdout)[0].filename),bytes=readFileSync(archive);
-  const install=spawnSync('npm',['install','--prefix',installation,'--omit=dev','--ignore-scripts','--package-lock=false','--no-save',archive],{encoding:'utf8'});expect(install.status,install.stderr).toBe(0);
+  const install=spawnSync('npm',['install','--prefix',installation,...productionInstallFlags,archive],{encoding:'utf8'});expect(install.status,install.stderr).toBe(0);
   expect(installedDirectory(installed,source)).toBe(installed);
   const held=inspectInstalledOwner(source,installed),asset=resolve(held.root,'assets/proof.ts'),original=readFileSync(asset);
   expect(held.name).toBe('@fixture/owner');expect(held.archiveSha256).toMatch(/^[a-f0-9]{64}$/u);

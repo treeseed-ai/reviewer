@@ -6,6 +6,7 @@ import { expect } from 'vitest';
 
 // Same native fixture; callers retain ownership of every allocated root and cleanup.
 export const roots: string[] = [];
+export const productionInstallFlags = ['--omit=dev','--ignore-scripts','--package-lock=false','--no-save','--no-audit','--no-fund','--prefer-offline'] as const;
 export function fixture(failing = false, skipped = false) {
 	const root = mkdtempSync(resolve(tmpdir(), 'guarantee-full-suite-')); roots.push(root);
 	for (const directory of ['tests', 'guarantees', '.treeseed', 'node_modules']) mkdirSync(resolve(root, directory), { recursive: true });
