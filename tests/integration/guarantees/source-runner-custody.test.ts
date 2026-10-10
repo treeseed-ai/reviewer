@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fixture, roots } from '../../fixtures/guarantee-prerequisites.ts';
@@ -31,4 +31,18 @@ it('native source CLI runs its executing Reviewer complete suite beside the sele
 	expect(readFileSync(resolve(owner, '.treeseed/guarantees/runs/source-runner-first/report.json'))).toEqual(passed.bytes);
 	expect(readFileSync(resolve(owner, '.treeseed/guarantees/runs/source-runner-failed/report.json'))).toEqual(failed.bytes);
 	expect(readFileSync(resolve(runner, '.treeseed/order'), 'utf8').split('\n').filter(Boolean).sort()).toEqual(['integration', 'integration', 'integration', 'unit', 'unit', 'unit']);
+}, 30_000);
+
+it('native source CLI holds every candidate before the first owner suite so an earlier owner cannot replace the later executing runner authority', () => {
+	const owner = fixture(), runner = sourceRunnerFixture(), path = resolve(runner, 'held-source.ts');
+	writeFileSync(path, 'original exact bytes');
+	appendFileSync(resolve(owner, 'tests/unit.test.ts'), `\nimport {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(path)},'changed before the later suite');\n`);
+	const native = spawnSync(process.execPath, ['--import', resolve(import.meta.dirname, '../../../node_modules/tsx/dist/loader.mjs'),
+		resolve(runner, 'src/verifiers/guarantees/command.ts'), '--workspace', owner, '--ids', 'proof', '--run-id', 'source-runner-moved'],
+		{ encoding: 'utf8', timeout: 15_000 });
+	expect(native.error).toBeUndefined(); expect(native.signal).toBeNull();
+	const report = JSON.parse(native.stdout); expect(report.ok).toBe(false); expect(native.status).toBe(1);
+	expect(readFileSync(resolve(owner, '.treeseed/order'), 'utf8')).not.toContain('scene');
+	expect(readFileSync(path, 'utf8')).toBe('changed before the later suite');
+	expect(JSON.stringify(report.diagnostics)).toContain('candidate changed');
 }, 30_000);
