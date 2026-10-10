@@ -82,10 +82,13 @@ export function assetPaths(root:string,files:InstalledOwner['files'],bins:Instal
  }
  const walk=(directory:string):string[]=>readdirSync(resolve(root,directory),{withFileTypes:true}).flatMap(entry=>{
   const path=directory?`${directory}/${entry.name}`:entry.name;
-  if(!directory&&entry.name==='node_modules'&&!bundled)return [];
   if(entry.isSymbolicLink()) {
    if(links.has(path))return [];
    throw new Error('Installed owner contains redirected assets.');
+  }
+  if(!directory&&entry.name==='node_modules'&&!bundled) {
+   if(!entry.isDirectory())throw new Error('Installed dependencies require a regular directory.');
+   return [];
   }
   if(entry.isDirectory()) {
    const dependency=/^node_modules\/((?:@[^/]+\/)?[^/.@][^/]*)$/u.exec(path)?.[1];

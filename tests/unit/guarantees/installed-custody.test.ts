@@ -44,6 +44,10 @@ it('matches actual npm archive and production installation bytes and rejects cha
   expect(installedCustodyDiagnostics([held]).length).toBeGreaterThan(0);
   rmSync(dependenciesRoot,{recursive:true,force:true});
   expect(installedCustodyDiagnostics([held])).toEqual([]);
+  writeFileSync(dependenciesRoot,'unarchived file');
+  expect(()=>inspectInstalledOwner(source,installed)).toThrow('regular directory');
+  expect(installedCustodyDiagnostics([held]).length).toBeGreaterThan(0);rmSync(dependenciesRoot);
+  mkdirSync(dependenciesRoot);expect(installedCustodyDiagnostics([held])).toEqual([]);rmSync(dependenciesRoot,{recursive:true});
   const payload=resolve(root,'payload'),external=resolve(payload,'node_modules/external');
   mkdirSync(resolve(payload,'node_modules/bundled'),{recursive:true});mkdirSync(external);
   writeFileSync(resolve(payload,'package.json'),JSON.stringify({dependencies:{bundled:'1.0.0',external:'1.0.0'}}));
