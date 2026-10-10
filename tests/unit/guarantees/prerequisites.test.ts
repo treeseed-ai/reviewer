@@ -29,6 +29,11 @@ it('accepts only complete observed full-suite evidence without skipped pending o
 		[{...measurements[0],durationMs:1200001}],[{...measurements[0],remainingMs:null}],[{...measurements[0],remainingMs:1200001}],
 		[{...measurements[0],remainingMs:-1200001}],[{...measurements[0],secret:'private token'}],[{phase:'PACK',durationMs:1}]])
 		expect(fullSuiteFailures(failure(invalid))).toEqual([{title:'installed failure',status:'failed',criterion:'ACCEPTANCE_INSTALLED_INSTALL_ETIMEDOUT'}]);
+	for(const extra of ['Error: ACCEPTANCE_INSTALLED_PHASE_MEASUREMENTS: invalid JSON',
+		'Error: ACCEPTANCE_INSTALLED_PHASE_MEASUREMENTS: '+JSON.stringify(measurements)]) {
+		const ambiguous=failure(measurements);ambiguous.testResults[0]!.assertionResults[0]!.failureMessages.push(extra);
+		expect(fullSuiteFailures(ambiguous)).toEqual([{title:'installed failure',status:'failed',criterion:'ACCEPTANCE_INSTALLED_INSTALL_ETIMEDOUT'}]);
+	}
 	for (const patch of [{success:false},{numTotalTests:0},{numTotalTests:'2'},{numTotalTests:3},{numPassedTests:1},
 		{numFailedTests:1},{numPendingTests:1},{numTodoTests:1},{numFailedTestSuites:1},{numPendingTestSuites:1},
 		{testResults:[]},{testResults:[{assertionResults:[]}]},{testResults:null}])

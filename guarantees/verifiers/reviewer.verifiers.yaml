@@ -139,7 +139,7 @@ verifiers:
   reviewer.prerequisites.failure-stage:
     kind: vitestCase
     ownerPackage: "@treeseed/reviewer"
-    testFile: tests/integration/guarantee-prerequisites.test.ts
+    testFile: tests/integration/guarantees/installed-custody.test.ts
     testName: retains a real full-suite controlled failure stage without copying native failure prose
   reviewer.prerequisites.framework-watchdog-unit:
     kind: vitestCase

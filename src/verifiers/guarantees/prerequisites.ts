@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { parse } from 'yaml';
 import type { LocalGuaranteePlan } from './command.ts';
-import { failureCriterion } from './safe-cli-failure.ts';
+import { failureCriterion, installedCommandMeasurements } from './safe-cli-failure.ts';
 
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
@@ -67,7 +67,7 @@ export function fullSuitePassed(value: unknown): boolean {
 
 export function fullSuiteFailures(value: unknown, root = process.cwd()) {
  const files=row(value).testResults;
- const failures:Array<{title?:unknown,status:unknown,criterion?:string,file?:string|null}>=[];
+ const failures:Array<{title?:unknown,status:unknown,criterion?:string,file?:string|null,measurements?:ReturnType<typeof installedCommandMeasurements>}>=[];
  if(!Array.isArray(files))return failures;
  for(const value of files) {
   const file=row(value),assertions=file.assertionResults;
@@ -87,7 +87,8 @@ export function fullSuiteFailures(value: unknown, root = process.cwd()) {
    const assertion=row(value),messages=assertion.failureMessages;
    const criterion=Array.isArray(messages)?messages.flatMap(message=>
     typeof message==='string'?failureCriterion(message)??[]:[]).at(0):undefined;
-   failures.push({title:assertion.title,status:assertion.status,...(criterion?{criterion}:{})});
+   const measurements=installedCommandMeasurements(messages);
+   failures.push({title:assertion.title,status:assertion.status,...(criterion?{criterion}:{}),...(measurements?{measurements}:{})});
   }
  }
  return failures;
