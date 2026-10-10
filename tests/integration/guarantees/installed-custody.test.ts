@@ -1,5 +1,5 @@
 import { afterEach, expect, it, onTestFailed } from 'vitest';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, unlinkSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fixture, roots } from '../../fixtures/guarantee-prerequisites.ts';
@@ -93,7 +93,7 @@ it('holds and executes the explicitly supplied runner source whole suite once wi
 
 it('executes actual production-installed Reviewer and owner archives and retains denied checkout imports and missing-helper failures before exact retry',()=>{
  const deadline=performance.now()+30_000,workDeadline=deadline-5_000;let originalFailure:unknown;
- phases.length=0;onTestFailed(()=>console.warn('ACCEPTANCE_INSTALLED_MEASURED_PHASES',JSON.stringify(phases)));
+ phases.length=0;onTestFailed(()=>{throw new Error('ACCEPTANCE_INSTALLED_PHASE_MEASUREMENTS: '+JSON.stringify(phases));});
  try {
  expect(()=>native('EXECUTE',process.execPath,['-e','Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5000)'],tmpdir(),performance.now()+25))
   .toThrow('ACCEPTANCE_INSTALLED_EXECUTE_ETIMEDOUT');
@@ -127,4 +127,31 @@ it('executes actual production-installed Reviewer and owner archives and retains
    expect(performance.now(),'ACCEPTANCE_INSTALLED_CLOSE: Original thirty-second boundary includes scoped cleanup').toBeLessThan(deadline);
   } catch(cleanupFailure) {throw originalFailure?new AggregateError([originalFailure,cleanupFailure],'Original installed proof and scoped cleanup both failed'):cleanupFailure;}
  }
+});
+
+it('retains a real full-suite controlled failure stage without copying native failure prose',()=>{
+ const root=fixture();
+ appendFileSync(resolve(root,'tests/unit.test.ts'),`
+import {spawnSync} from 'node:child_process'; import {performance} from 'node:perf_hooks'; import {onTestFailed} from 'vitest'; import {writeFileSync,existsSync} from 'node:fs';
+ it('controlled failure',()=>{if(!existsSync('.treeseed/fail-installed-phase'))return;
+ const started=performance.now(),deadline=started+5000;
+ const result=spawnSync(process.execPath,['-e',"process.stderr.write('private native error');process.exit(7)"],{encoding:'utf8',timeout:5000});
+ const measurements=[{phase:'EXECUTE',durationMs:performance.now()-started,remainingMs:deadline-performance.now()}];
+ writeFileSync('.treeseed/installed-phase.json',JSON.stringify(measurements));
+ onTestFailed(()=>{throw new Error('ACCEPTANCE_INSTALLED_PHASE_MEASUREMENTS: '+JSON.stringify(measurements));});
+ expect(result.status,'ACCEPTANCE_PREREQUISITE_FIXTURE: private native error').toBe(0);});
+`);
+ writeFileSync(resolve(root,'.treeseed/fail-installed-phase'),'controlled failure input');
+ const held=candidate(root),plan=planLocalGuarantees(root,['proof']);
+ const report=runLocalGuarantees(root,plan,'controlled-failure'); expect(report.ok).toBe(false);
+ const path=resolve(root,'.treeseed/guarantees/runs/controlled-failure',report.results[0]!.evidence[0]!);
+ const bytes=readFileSync(path),receipt=JSON.parse(bytes.toString('utf8'));
+ const measurements=JSON.parse(readFileSync(resolve(root,'.treeseed/installed-phase.json'),'utf8'));
+ expect(measurements[0].durationMs).toBeGreaterThan(0);expect(measurements[0].remainingMs).toBeGreaterThan(0);
+ expect(receipt.checks.failures).toEqual([{title:'controlled failure',status:'failed',criterion:'ACCEPTANCE_PREREQUISITE_FIXTURE',measurements}]);
+ expect(JSON.stringify(receipt)).not.toContain('private native error');
+ expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
+ unlinkSync(resolve(root,'.treeseed/fail-installed-phase'));
+ expect(candidate(root)).toEqual(held);expect(runLocalGuarantees(root,plan,'controlled-retry').ok).toBe(true);
+ expect(readFileSync(path)).toEqual(bytes);expect(candidate(root)).toEqual(held);
 });

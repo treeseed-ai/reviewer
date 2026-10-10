@@ -32,3 +32,25 @@ export function selectedVitestFailure(messages: unknown, file: string, absoluteF
 	}
 	return { code, file, line, column, ...(criterion ? { criterion } : {}), ...(cliFailure ? { cliFailure } : {}) };
 }
+
+/** Only numeric timings for fixed installed-command phases may cross redaction. */
+export function installedCommandMeasurements(messages: unknown) {
+ if(!Array.isArray(messages))return undefined;
+ const matches=messages.flatMap(message=>typeof message==='string'
+  ? /^(?:Error: )?ACCEPTANCE_INSTALLED_PHASE_MEASUREMENTS: ([^\r\n]+)(?:\r?\n|$)/u.exec(message)?.[1]??[] : []);
+ if(matches.length!==1||matches[0]!.length>4096)return undefined;
+ try {
+  const values:unknown=JSON.parse(matches[0]!);
+  if(!Array.isArray(values)||values.length<1||values.length>16)return undefined;
+  const phases=['PACK','INSTALL','DEPENDENCY_EXPORTS','PLAN','EXECUTE'];
+  if(!values.every((value:unknown)=>{
+   if(!value||typeof value!=='object'||Array.isArray(value))return false;
+   const entry=value as Record<string,unknown>;
+   return Object.keys(entry).sort().join(',')==='durationMs,phase,remainingMs'
+    &&typeof entry.phase==='string'&&phases.includes(entry.phase)
+    &&typeof entry.durationMs==='number'&&Number.isFinite(entry.durationMs)&&entry.durationMs>=0&&entry.durationMs<=1_200_000
+    &&typeof entry.remainingMs==='number'&&Number.isFinite(entry.remainingMs)&&Math.abs(entry.remainingMs)<=1_200_000;
+  }))return undefined;
+  return values as {phase:string;durationMs:number;remainingMs:number}[];
+ } catch {return undefined;}
+}

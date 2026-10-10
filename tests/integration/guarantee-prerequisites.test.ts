@@ -187,16 +187,6 @@ it('rejects an escaped test config and missing Git custody without scene side ef
 	}
 });
 
-it('retains a real full-suite controlled failure stage without copying native failure prose',()=>{
-	const root=fixture();
-	appendFileSync(resolve(root,'tests/unit.test.ts'),"\nit('controlled failure',()=>{throw new Error('ACCEPTANCE_PREREQUISITE_FIXTURE: private native error');});\n");
-	const report=runLocalGuarantees(root,planLocalGuarantees(root,['proof']),'controlled-failure');
-	expect(report.ok).toBe(false);
-	const receipt=JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/controlled-failure',report.results[0]!.evidence[0]!),'utf8'));
-	expect(receipt.checks.failures).toEqual([{title:'controlled failure',status:'failed',criterion:'ACCEPTANCE_PREREQUISITE_FIXTURE'}]);
-	expect(JSON.stringify(receipt)).not.toContain('private native error');
-	expect(readFileSync(resolve(root,'.treeseed/order'),'utf8')).not.toContain('scene');
-});
 
 it('retains the actual later native failure hook criterion before blocking scenes and preserves failed evidence after unchanged-source retry',()=>{
 	const root=fixture(); appendFileSync(resolve(root,'tests/integration.test.ts'), "\nimport {onTestFailed} from 'vitest'; import {existsSync} from 'node:fs'; it('native controlled phase',()=>{onTestFailed(()=>{throw new Error('ACCEPTANCE_NATIVE_PHASE_COMPILE: private hook cause');});if(existsSync('.treeseed/fail-phase'))throw new Error('private original cause');});\n");
