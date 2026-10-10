@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fixture, roots } from '../../fixtures/guarantee-prerequisites.ts';
@@ -30,14 +30,30 @@ function createProductionInstallation(deadline:number) {
  writeFileSync(resolve(source,'guarantees/proof.verifiers.yaml'),JSON.stringify({verifiers:{'proof.scene':{kind:'nodeTestCase',ownerPackage:'@fixture/installed',testFile:'assets/proof.test.ts',testName:'installed native bytes'}}}));
  writeFileSync(resolve(source,'assets/proof.test.ts'),original);writeFileSync(resolve(source,'assets/helper.ts'),"export const value='exact native bytes';");
  writeFileSync(resolve(source,'assets/payload.txt'),'actual archived payload');
- const archives=[source,repository].map(cwd=>{
+ const dependencySource=resolve(repository,'node_modules/@treeseed/sdk');
+ expect(lstatSync(dependencySource).isSymbolicLink()).toBe(false);expect(realpathSync(dependencySource)).toBe(dependencySource);
+ const dependencyManifest=JSON.parse(readFileSync(resolve(dependencySource,'package.json'),'utf8'));
+ expect(dependencyManifest.name).toBe('@treeseed/sdk');
+ const inputs=[source,repository,dependencySource],dependencyBytes=new Map<string,Buffer>();
+ const archives=inputs.map(cwd=>{
   const packed=native('PACK','npm',['pack','--ignore-scripts','--json','--pack-destination',installationRoot],cwd,deadline);
-  expect(packed.status,packed.stderr).toBe(0);return resolve(installationRoot,JSON.parse(packed.stdout)[0].filename);
+  expect(packed.status,packed.stderr).toBe(0);const archive=JSON.parse(packed.stdout)[0];
+  if(cwd===dependencySource)for(const file of archive.files as {path:string}[])
+   if(file.path!=='package.json')dependencyBytes.set(file.path,readFileSync(resolve(cwd,file.path)));
+  return resolve(installationRoot,archive.filename);
  });
  const prefix=installationRoot;
+ writeFileSync(resolve(prefix,'package.json'),JSON.stringify({private:true,type:'module',
+  dependencies:Object.fromEntries(inputs.map((cwd,index)=>[JSON.parse(readFileSync(resolve(cwd,'package.json'),'utf8')).name,`file:${archives[index]}`])),
+  overrides:{'@treeseed/sdk':'$@treeseed/sdk'}}));
  const installation=native('INSTALL','npm',['install','--prefix',prefix,'--omit=dev','--ignore-scripts','--package-lock=false','--no-save',
-  '--cache',resolve(installationRoot,'npm-cache'),...archives],installationRoot,deadline);
+  '--no-audit','--no-fund','--cache',resolve(installationRoot,'npm-cache'),...archives],installationRoot,deadline);
  expect(installation.status,installation.stderr).toBe(0);
+ expect(dependencyBytes.size).toBeGreaterThan(0);
+ for(const [path,bytes]of dependencyBytes)expect(readFileSync(resolve(prefix,'node_modules/@treeseed/sdk',path)).equals(bytes),
+  'ACCEPTANCE_INSTALLED_DEPENDENCY_BYTES: Every archived SDK asset must retain exact bytes').toBe(true);
+ const installedDependency=JSON.parse(readFileSync(resolve(prefix,'node_modules/@treeseed/sdk/package.json'),'utf8'));
+ for(const field of ['name','version','exports','dependencies'])expect(installedDependency[field]).toEqual(dependencyManifest[field]);
  const dependency=native('DEPENDENCY_EXPORTS',process.execPath,['--input-type=module','-e',"await import('@treeseed/sdk/operator-contracts')"],installationRoot,deadline);
  expect(dependency.status,'ACCEPTANCE_INSTALLED_DEPENDENCY_EXPORTS: Actual production SDK exports must resolve without checkout source').toBe(0);
  installed=resolve(prefix,'node_modules');owner=resolve(installed,'@fixture/installed');runner=resolve(installed,'@treeseed/reviewer/dist/verifiers/guarantees/node-case.js');
