@@ -26,20 +26,26 @@ runs:
         path: .treeseed/tools/reviewer
         persist-credentials: false
         fetch-depth: 1
+    - name: Install the executing Reviewer suite dependencies
+      shell: bash
+      run: npm ci --prefix .treeseed/tools/reviewer --ignore-scripts --no-audit --no-fund
+    - name: Measure the executing Reviewer prerequisite custody
+      id: reviewer-prerequisites
+      shell: bash
+      run: node --import ./.treeseed/tools/reviewer/node_modules/tsx/dist/loader.mjs .treeseed/tools/reviewer/scripts/scene-action-prerequisites.ts
     - name: Install Reviewer native prerequisite toolchain
+      if: steps.reviewer-prerequisites.outputs.toolchain-ready != 'true'
       uses: erlef/setup-beam@v1
       with:
         otp-version: "27.3.4.18"
         elixir-version: "1.17.3"
-    - name: Install the executing Reviewer suite dependencies
-      shell: bash
-      run: npm ci --prefix .treeseed/tools/reviewer --ignore-scripts --no-audit --no-fund
     - name: Install the executing Reviewer exact SDK artifact
-      uses: treeseed-ai/sdk/.github/actions/install-exact-sdk@77a6908d4e7580716e9e2ab92de80150b02cdb06
+      uses: treeseed-ai/sdk/.github/actions/install-exact-sdk@8702e0285622276d850250a5f8637b6d704318d1
       env:
         NODE_ENV: production
       with:
         github-token: ${{ github.token }}
+        commit: ${{ steps.reviewer-prerequisites.outputs.sdk-commit }}
         paths: .treeseed/tools/reviewer/node_modules/@treeseed/sdk
     - name: Build the executing Reviewer archive assets
       shell: bash

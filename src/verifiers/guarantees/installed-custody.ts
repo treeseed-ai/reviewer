@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readlinkSync, readdirSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 const digest=(bytes:Buffer)=>createHash('sha256').update(bytes).digest('hex');
@@ -43,13 +43,48 @@ export function installedRunnerSource(workspace:string,installed:string,file:str
 export interface InstalledOwner {
  sourceRoot:string;root:string;archive:string;archiveSha256:string;name:string;version:string;
  files:Array<{path:string;sha256:string;mode:number}>;
+ bins:Array<{path:string;target:string}>;
  pack:unknown;
 }
-function assetPaths(root:string,bundled:boolean):string[] {
+function declaredBins(root:string,files:readonly {path:string}[]) {
+ const paths=new Set(files.map(file=>file.path)),links=new Map<string,string>();
+ for(const file of files) {
+  const match=/^(.*(?:^|\/)node_modules\/)((?:@[^/]+\/)?[^/]+)\/package\.json$/u.exec(file.path);
+  if(!match)continue;
+  const manifest=JSON.parse(regular(root,file.path).bytes.toString('utf8')) as {name?:unknown;bin?:unknown};
+  if(manifest.bin===undefined)continue;
+  if(manifest.name!==match[2])throw new Error('Bundled command package identity differs from its archived location.');
+  const bins=typeof manifest.bin==='string'?{[match[2]!.split('/').at(-1)!]:manifest.bin}:manifest.bin;
+  if(!bins||typeof bins!=='object'||Array.isArray(bins))throw new Error('Archived command declarations are malformed.');
+  const packageRoot=dirname(resolve(root,file.path));
+  for(const [name,value]of Object.entries(bins)) {
+   if(!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u.test(name)||typeof value!=='string'||!value||isAbsolute(value)||/[\r\n\0]/u.test(value))
+    throw new Error('Archived command identity or target is malformed.');
+   const absolute=resolve(packageRoot,value),local=relative(packageRoot,absolute),target=relative(root,absolute);
+   if(!local||local==='..'||local.startsWith(`..${sep}`)||isAbsolute(local)||!paths.has(target))
+    throw new Error('Installed commands require regular targets held in their own archived package.');
+   regular(root,target);
+   const path=`${match[1]}.bin/${name}`,link=relative(dirname(resolve(root,path)),absolute);
+   if(links.has(path))throw new Error('Bundled command identity is ambiguous.');links.set(path,link);
+  }
+ }
+ return [...links].sort(([a],[b])=>a<b?-1:a>b?1:0).map(([path,target])=>({path,target}));
+}
+function assetPaths(root:string,bundled:boolean,bins:InstalledOwner['bins']):string[] {
+ const links=new Map(bins.map(bin=>[bin.path,bin.target]));
+ for(const bin of bins) {
+  const path=resolve(root,bin.path),target=resolve(dirname(path),bin.target);
+  if(!lstatSync(path).isSymbolicLink()||readlinkSync(path)!==bin.target||realpathSync(path)!==target)
+   throw new Error('Installed command links differ from their exact archived declarations.');
+  regular(root,relative(root,target));
+ }
  const walk=(directory:string):string[]=>readdirSync(resolve(root,directory),{withFileTypes:true}).flatMap(entry=>{
   const path=directory?`${directory}/${entry.name}`:entry.name;
   if(!directory&&entry.name==='node_modules'&&!bundled)return [];
-  if(entry.isSymbolicLink())throw new Error('Installed owner contains redirected assets.');
+  if(entry.isSymbolicLink()) {
+   if(links.has(path))return [];
+   throw new Error('Installed owner contains redirected assets.');
+  }
   return entry.isDirectory()?walk(path):[path];
  });
  return walk('').sort();
@@ -87,11 +122,12 @@ export function inspectInstalledOwner(sourceRoot:string,installed:string):Instal
    throw new Error('Installed assets differ from the held archive.');
   return {path:file.path,sha256:digest(asset.bytes),mode:asset.mode};
  });
- if(JSON.stringify(assetPaths(root,files.some(file=>file.path.startsWith('node_modules/'))))!==JSON.stringify(files.map(file=>file.path).sort()))
+ const bins=declaredBins(root,files);
+ if(JSON.stringify(assetPaths(root,files.some(file=>file.path.startsWith('node_modules/')),bins))!==JSON.stringify(files.map(file=>file.path).sort()))
   throw new Error('Installed owner contains missing or unarchived assets.');
  const manifest=JSON.parse(regular(root,'package.json').bytes.toString('utf8')) as {name:string;version:string};
  if(manifest.name!==source.name||manifest.version!==source.version)throw new Error('Installed package identity differs from its source.');
- return {sourceRoot,root,archive,archiveSha256:digest(archiveBytes),name:source.name,version:source.version,files,pack};
+ return {sourceRoot,root,archive,archiveSha256:digest(archiveBytes),name:source.name,version:source.version,files,bins,pack};
 }
 export function installedCustodyDiagnostics(owners:readonly InstalledOwner[]) {
  return owners.flatMap(owner=>{
@@ -101,7 +137,7 @@ export function installedCustodyDiagnostics(owners:readonly InstalledOwner[]) {
     const asset=regular(owner.root,file.path);
     if(digest(asset.bytes)!==file.sha256||asset.mode!==file.mode)throw new Error();
    }
-   if(JSON.stringify(assetPaths(owner.root,owner.files.some(file=>file.path.startsWith('node_modules/'))))!==JSON.stringify(owner.files.map(file=>file.path).sort()))throw new Error();
+   if(JSON.stringify(assetPaths(owner.root,owner.files.some(file=>file.path.startsWith('node_modules/')),owner.bins))!==JSON.stringify(owner.files.map(file=>file.path).sort()))throw new Error();
    return [];
   } catch {return [`${owner.name}: Installed assets or held archive changed or became unavailable.`];}
  });

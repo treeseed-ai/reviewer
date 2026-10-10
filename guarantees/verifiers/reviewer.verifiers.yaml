@@ -1,6 +1,21 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.action-native-pins-unit:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/unit/guarantees/action-prerequisites.test.ts
+    testName: derives one SDK artifact identity and reuses only the positively measured exact declared native toolchain
+  reviewer.prerequisites.action-native-pins-native:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/action-prerequisites.test.ts
+    testName: native action preparation observes the original pinned Elixir OTP and SDK manifest without replacing an active toolchain or changing held assets
+  reviewer.prerequisites.installed-bins-native:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/installed-bin-custody.test.ts
+    testName: native production bundled command links bind only declared archived regular targets and reject missing renamed foreign or substituted links without source fallback
   reviewer.prerequisites.installed-location-unit:
     kind: vitestCase
     ownerPackage: '@treeseed/reviewer'

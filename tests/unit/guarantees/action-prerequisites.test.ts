@@ -23,6 +23,16 @@ it('derives one SDK artifact identity and reuses only the positively measured ex
   for(const result of [{...success,status:1},{...success,signal:'SIGTERM' as const},{...success,error:Object.assign(new Error('unreadable'),{code:'EACCES'})},
    {...success,stdout:'1.17.3\n27.3.4.19\n'},{...success,stdout:'1.18.0\n27.3.4.18\n'},{...success,stdout:''},{...success,stdout:success.stdout+'extra\n'}])
    expect(()=>prepareSceneAction(root,()=>result,{})).toThrow();
+  expect(()=>prepareSceneAction(root,()=>missing,{INSTALL_DIR_FOR_ELIXIR:'/existing/toolchain'})).toThrow();
+  const tool=action.runs.steps.find((step:{uses?:string})=>step.uses==='erlef/setup-beam@v1');
+  const pins={...tool.with};
+  for(const field of ['otp-version','elixir-version'])for(const value of [undefined,27,'', 'latest', '27.3']){
+   tool.with={...pins,[field]:value};save();const before=calls;
+   expect(()=>prepareSceneAction(root,probe,{})).toThrow();expect(calls).toBe(before);
+  }
+  tool.with=pins;action.runs.steps.push({...tool});save();const before=calls;
+  expect(()=>prepareSceneAction(root,probe,{})).toThrow();expect(calls).toBe(before);
+  action.runs.steps.pop();save();
   for(const value of ['', 'latest','git+https://github.com/treeseed-ai/sdk.git#staging','git+https://github.com/treeseed-ai/sdk.git#'+'A'.repeat(40)]){
    manifest.dependencies['@treeseed/sdk']=value;save();const before=calls;expect(()=>prepareSceneAction(root,probe,{})).toThrow();expect(calls).toBe(before);
   }
