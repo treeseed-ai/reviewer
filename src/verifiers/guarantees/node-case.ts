@@ -1,6 +1,7 @@
 import { run } from 'node:test';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { delimiter, resolve } from 'node:path';
+import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { failureCriterion, safeCliFailure } from './safe-cli-failure.ts';
 
@@ -33,6 +34,15 @@ export default async function* nativeReporter(source: AsyncIterable<{type: strin
 async function namedCase(): Promise<void> {
 const [file, name, installedPackages] = process.argv.slice(2);
 if (!file || !name) throw new Error('An exact test file and name are required.');
+// Archive-declared command links are held by installed custody before dispatch.
+// Native commands in the selected test must resolve that installation first.
+if (installedPackages) {
+	const directory = realpathSync(installedPackages), ownerRoot = realpathSync(process.cwd());
+	const owner = JSON.parse(readFileSync(resolve(ownerRoot, 'package.json'), 'utf8')) as { name?: unknown };
+	if (typeof owner.name !== 'string' || !/^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/u.test(owner.name)
+		|| ownerRoot !== resolve(directory, owner.name)) throw new Error('Installed native commands cannot fall back to a source owner.');
+	process.env.PATH = [resolve(ownerRoot, 'node_modules/.bin'), resolve(directory, '.bin'), process.env.PATH].filter(Boolean).join(delimiter);
+}
 const pattern = `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
 const assertions: Array<{ title: string; status: string; duration: number; failure?: { code: string; file: string; line: number; column: number; criterion?: string; cliFailure?: string } }> = [];
 let failures = 0;

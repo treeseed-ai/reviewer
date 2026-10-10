@@ -14,7 +14,7 @@ import { runOwnedCommand } from '../../../src/verifiers/guarantees/owned-command
 
 let installationRoot:string,installed:string,owner:string,runner:string,source:string,workspace:string;
 const phases:{phase:string;durationMs:number;remainingMs:number}[]=[];
-const original="import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{execFileSync}from'node:child_process';import{value}from'./helper.ts';test('installed native bytes',()=>{assert.equal(value,'exact native bytes');assert.equal(readFileSync(new URL('./payload.txt',import.meta.url),'utf8'),'actual archived payload');assert.equal(execFileSync('fixture-installed-command',[],{encoding:'utf8'}),'actual archived command');});";
+const original="import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{execFileSync}from'node:child_process';import{value}from'./helper.ts';test('installed native bytes',()=>{assert.equal(value,'exact native bytes');assert.equal(readFileSync(new URL('./payload.txt',import.meta.url),'utf8'),'actual archived payload');for(const command of ['fixture-installed-command','fixture-bundled-command'])assert.equal(execFileSync(command,[],{encoding:'utf8'}),'actual archived command');});";
 function native(phase:string,command:string,args:string[],cwd:string,deadline:number) {
  const timeout=Math.floor(deadline-performance.now());
  let label=`ACCEPTANCE_INSTALLED_${phase}: Original native command boundary`;
@@ -32,8 +32,11 @@ function createProductionInstallation(deadline:number) {
  const repository=resolve(import.meta.dirname,'../../..');workspace=resolve(installationRoot,'workspace');source=resolve(workspace,'packages/native');
  mkdirSync(resolve(workspace,'packages'),{recursive:true});renameSync(fixture(),source);symlinkSync(repository,resolve(workspace,'packages/reviewer'),'dir');
  mkdirSync(resolve(source,'assets'));
- writeFileSync(resolve(source,'package.json'),JSON.stringify({name:'@fixture/installed',version:'1.0.0',type:'module',files:['assets','guarantees','command.mjs','treeseed.package.yaml'],bin:{'fixture-installed-command':'./command.mjs'},scripts:{test:'vitest run --config ./vitest.config.ts'}}));
+ writeFileSync(resolve(source,'package.json'),JSON.stringify({name:'@fixture/installed',version:'1.0.0',type:'module',files:['assets','guarantees','command.mjs','treeseed.package.yaml'],bin:{'fixture-installed-command':'./command.mjs'},dependencies:{'@fixture/tool':'1.0.0'},bundledDependencies:['@fixture/tool'],scripts:{test:'vitest run --config ./vitest.config.ts'}}));
  writeFileSync(resolve(source,'command.mjs'),ts.transpileModule("#!/usr/bin/env node\nprocess.stdout.write('actual archived command');",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);chmodSync(resolve(source,'command.mjs'),0o755);
+ const bundled=resolve(source,'node_modules/@fixture/tool');mkdirSync(bundled,{recursive:true});
+ writeFileSync(resolve(bundled,'package.json'),JSON.stringify({name:'@fixture/tool',version:'1.0.0',bin:{'fixture-bundled-command':'./command.mjs'}}));
+ writeFileSync(resolve(bundled,'command.mjs'),readFileSync(resolve(source,'command.mjs')));chmodSync(resolve(bundled,'command.mjs'),0o755);
  writeFileSync(resolve(source,'guarantees/proof.guarantee.yaml'),'id: proof\nownerPackage: "@fixture/installed"\nscene: { required: true, manifest: guarantees/proof.scene.yaml }\n');
  writeFileSync(resolve(source,'guarantees/proof.scene.yaml'),JSON.stringify({scope:'local-component-tests',workflow:[{id:'native',action:{verifier:'proof.scene'},expect:{status:'passed'}}]}));
  writeFileSync(resolve(source,'guarantees/proof.verifiers.yaml'),JSON.stringify({verifiers:{'proof.scene':{kind:'nodeTestCase',ownerPackage:'@fixture/installed',testFile:'assets/proof.test.ts',testName:'installed native bytes'}}}));
@@ -154,6 +157,7 @@ it('executes actual production-installed Reviewer and owner archives and retains
  const foreign=resolve(installationRoot,'uninstalled-commands');mkdirSync(foreign);
  writeFileSync(resolve(foreign,'fixture-installed-command'),ts.transpileModule("#!/usr/bin/env node\nprocess.stdout.write('uninstalled source fallback');",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);
  chmodSync(resolve(foreign,'fixture-installed-command'),0o755);vi.stubEnv('PATH',foreign+delimiter+(process.env.PATH??''));
+ writeFileSync(resolve(foreign,'fixture-bundled-command'),readFileSync(resolve(foreign,'fixture-installed-command')));chmodSync(resolve(foreign,'fixture-bundled-command'),0o755);
  const command=resolve(installed,'@treeseed/reviewer/dist/verifiers/guarantees/command.js');
  const planned=native('PLAN',process.execPath,[command,'--workspace',workspace,'--ids','proof','--plan','--installed-packages',installed],installationRoot,workDeadline);
  expect(planned.error).toBeUndefined();expect(planned.status,planned.stderr+planned.stdout).toBe(0);

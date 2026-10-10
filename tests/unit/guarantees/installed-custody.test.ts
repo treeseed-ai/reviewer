@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -65,5 +65,18 @@ it('matches actual npm archive and production installation bytes and rejects cha
   expect(()=>assetPaths(payload,files,[])).toThrow('dependency identity');
   rmSync(external,{recursive:true});symlinkSync(source,external,'dir');
   expect(()=>assetPaths(payload,files,[])).toThrow('redirected assets');
+  rmSync(external,{recursive:true});mkdirSync(external);writeFileSync(resolve(external,'package.json'),JSON.stringify({name:'external'}));
+  const commands=resolve(root,'.bin'),savedCommands=resolve(root,'saved-bin');mkdirSync(commands);
+  writeFileSync(resolve(payload,'command.ts'),'export const authority="held owner command";');
+  const commandFiles=[...files,{path:'command.ts',sha256:'not-used-by-inventory',mode:0}];
+  const bins=[{path:'../.bin/owner-command',target:'../payload/command.ts'}];
+  symlinkSync('../payload/command.ts',resolve(commands,'owner-command'));
+  expect(assetPaths(payload,commandFiles,bins)).toEqual(['command.ts','node_modules/bundled/package.json','package.json']);
+  renameSync(commands,savedCommands);symlinkSync(savedCommands,commands,'dir');
+  expect(()=>assetPaths(payload,commandFiles,bins)).toThrow('command directory');rmSync(commands,{recursive:true});renameSync(savedCommands,commands);
+  rmSync(resolve(commands,'owner-command'));symlinkSync(resolve(source,'assets/proof.ts'),resolve(commands,'owner-command'));
+  expect(()=>assetPaths(payload,commandFiles,bins)).toThrow('command links');
+  rmSync(resolve(commands,'owner-command'));symlinkSync('../payload/command.ts',resolve(commands,'owner-command'));
+  expect(assetPaths(payload,commandFiles,bins)).toEqual(['command.ts','node_modules/bundled/package.json','package.json']);
  } finally {rmSync(root,{recursive:true,force:true});}
 });
