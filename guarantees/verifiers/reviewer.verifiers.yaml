@@ -543,3 +543,23 @@ verifiers:
     ownerPackage: '@treeseed/reviewer'
     testFile: tests/contract/workflow-contract.test.ts
     testName: runs the entire owning suite serially under unchanged assertion deadlines
+  reviewer.prerequisites.collection-file-unit:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/unit/guarantees/exunit-entrypoints.test.ts
+    testName: retains owned failed collection files without inventing assertion identities or leaking native loader prose
+  reviewer.prerequisites.collection-file-native:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/collection-failure.test.ts
+    testName: native missing public module collection retains its exact owning file and blocks scenes despite every collected assertion passing
+  reviewer.prerequisites.action-dependency-native:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/action-dependency-custody.test.ts
+    testName: native disabled Git dependency scripts cannot supply archived public exports until an actual built package is installed
+  reviewer.prerequisites.action-dependency-contract:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/contract/workflow-contract.test.ts
+    testName: runs one immutable owner scene implementation and retains failure evidence
