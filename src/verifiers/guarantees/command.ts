@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { parse } from 'yaml';
 import { acceptanceCriteria, acceptanceCoverage, type AcceptanceBinding } from './acceptance-spec.ts';
 import { runPrerequisites, ownerTestCommand, custodyDiagnostics, participatingOwners, candidate } from './prerequisites.ts';
-import { inspectInstalledOwner, installedCustodyDiagnostics, installedDirectory, installedRunnerSource, type InstalledOwner } from './installed-custody.ts';
+import { inspectInstalledOwner, installedCustodyDiagnostics, installedDirectory, installedRunnerSource, executingPackage, type InstalledOwner } from './installed-custody.ts';
 import { selectedVitestFailure } from './safe-cli-failure.ts';
 import type { GuaranteeDiagnostic, GuaranteePlanEntry, GuaranteePlanReport, GuaranteeRunReport, GuaranteeRunStep, GuaranteeRunStatus, GuaranteeVerifierDefinition } from '@treeseed/sdk/guarantees';
 
@@ -190,7 +190,7 @@ export function prepareInstalledExecution(root:string,plan:LocalGuaranteePlan,in
 	}
 	return {installedOwners,installedEvidence,installedErrors,executingOwner};
 }
-export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId: string = randomUUID(), installedPackages?:string) {
+export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId: string = randomUUID(), installedPackages?:string, sourceRunner?:string) {
 	if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(runId)) throw new Error('Unsafe guarantee run ID.');
 	const output = resolve(root, '.treeseed/guarantees/runs', runId);
 	if (existsSync(output)) throw new Error('Guarantee evidence is immutable; run ID already exists.');
@@ -199,7 +199,8 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	const scope = plan.entries[0]?.scope ?? 'local-component-tests';
 	const checks = new Map<string, { status: 'passed' | 'failed' | 'blocked'; evidence: string[]; diagnostics: GuaranteeDiagnostic[] }>();
 	const blockedGuarantees = new Set<string>(), passedGuarantees = new Set<string>();
-	const {installedOwners,installedEvidence,installedErrors,executingOwner}=prepareInstalledExecution(root,plan,installedPackages,output);
+	const {installedOwners,installedEvidence,installedErrors,executingOwner:installedRunner}=prepareInstalledExecution(root,plan,installedPackages,output);
+	const executingOwner=installedPackages===undefined?sourceRunner:installedRunner;
 	const prerequisites = plan.ok&&!installedErrors.length ? runPrerequisites(plan, output, root,executingOwner) : { receipts: [] as string[], diagnostics: [] as string[], candidates: new Map<string,ReturnType<typeof candidate>>() };
 	prerequisites.receipts.push(...installedEvidence);prerequisites.diagnostics.push(...installedErrors,...installedCustodyDiagnostics(installedOwners));
 	for(const owner of installedOwners) {
@@ -306,7 +307,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
 		plan.diagnostics.push(...[...custody.installedErrors,...installedCustodyDiagnostics(custody.installedOwners)].map(diagnostic));
 		plan.ok=plan.diagnostics.length===0;
 	}
-	const report = process.argv.includes('--plan') ? plan : runLocalGuarantees(root, plan, option('run-id') || randomUUID(),process.argv.includes('--installed-packages')?option('installed-packages'):undefined);
+	let sourceRunner:string|undefined;
+	if(plan.ok&&!process.argv.includes('--plan')&&!process.argv.includes('--installed-packages')) {
+		try { sourceRunner=executingPackage(fileURLToPath(import.meta.url)).root; }
+		catch { plan.diagnostics.push(diagnostic('Executing source Reviewer package identity is unavailable.'));plan.ok=false; }
+	}
+	const report = process.argv.includes('--plan') ? plan : runLocalGuarantees(root, plan, option('run-id') || randomUUID(),process.argv.includes('--installed-packages')?option('installed-packages'):undefined,sourceRunner);
 	process.stdout.write(`${JSON.stringify(report)}\n`);
 	if (!report.ok) process.exitCode = 1;
 }

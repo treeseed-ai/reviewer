@@ -6,6 +6,8 @@ import { resolve } from 'node:path';
 import { expect } from 'vitest';
 import type { GuaranteeRunReport } from '@treeseed/sdk/guarantees';
 import type { LocalGuaranteePlan } from '../../src/verifiers/guarantees/command.ts';
+import { sourceRunnerFixture } from './source-runner.ts';
+import { roots as runnerRoots } from './guarantee-prerequisites.ts';
 
 // Package inputs only: the real installed command, Vitest and Git own execution.
 // Missing declared dist bytes fail; this fixture never builds or installs them.
@@ -18,7 +20,13 @@ export function specificationFixture() {
   const bin = resolve(repository, manifest.bin['treeseed-reviewer-guarantees']!);
   const binBytes = readFileSync(bin);
   const root = mkdtempSync(resolve(tmpdir(), 'reviewer-whole-spec-'));
+  let runner: string | undefined;
+  const closeRunner = () => { if (runner) { rmSync(runner, { recursive: true, force: true }); runnerRoots.splice(runnerRoots.indexOf(runner), 1); runner = undefined; } };
   try {
+    runner = sourceRunnerFixture();
+    cpSync(resolve(repository, 'dist/verifiers/guarantees'), resolve(runner, 'dist/verifiers/guarantees'), { recursive: true });
+    const runnerBin = resolve(runner, manifest.bin['treeseed-reviewer-guarantees']!);
+    expect(readFileSync(runnerBin)).toEqual(binBytes);
     for (const directory of ['tests', 'guarantees/verifiers', '.treeseed']) mkdirSync(resolve(root, directory), { recursive: true });
     // Reuse the existing native prerequisite fixture's owned-launcher pattern.
     // The original command's path fence must never be bypassed for selected tests.
@@ -58,7 +66,7 @@ export function specificationFixture() {
     const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
     expect(head.status).toBe(0);
     const invoke = (runId: string, ids = 'proof.unit,proof.native', plan = false, sections: string[] = [], exactSections: string[] = []) => {
-      const args = [bin, '--workspace', root, '--ids', ids, '--acceptance-spec', 'acceptance.md', '--run-id', runId, ...(plan ? ['--plan'] : []), ...sections.flatMap(section => ['--acceptance-section', section]), ...exactSections.flatMap(section => ['--acceptance-exact-section', section])];
+      const args = [runnerBin, '--workspace', root, '--ids', ids, '--acceptance-spec', 'acceptance.md', '--run-id', runId, ...(plan ? ['--plan'] : []), ...sections.flatMap(section => ['--acceptance-section', section]), ...exactSections.flatMap(section => ['--acceptance-exact-section', section])];
       const before = [...args];
       const child = spawnSync(process.execPath, args, { cwd: root, encoding: 'utf8', timeout: 30_000, maxBuffer: 8 * 1024 * 1024 });
       expect(child.error).toBeUndefined(); expect(child.signal).toBeNull(); expect(child.stderr, child.stderr).toBe('');
@@ -75,8 +83,8 @@ export function specificationFixture() {
           expect(readFileSync(packagePath)).toEqual(packageBytes); expect(readFileSync(bin)).toEqual(binBytes);
           const current = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
           expect(current.status).toBe(0); expect(current.stdout).toBe(head.stdout);
-        } finally { rmSync(root, { recursive: true, force: true }); }
+        } finally { closeRunner(); rmSync(root, { recursive: true, force: true }); }
       },
     };
-  } catch (error) { rmSync(root, { recursive: true, force: true }); throw error; }
+  } catch (error) { closeRunner(); rmSync(root, { recursive: true, force: true }); throw error; }
 }

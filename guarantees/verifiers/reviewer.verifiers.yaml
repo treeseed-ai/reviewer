@@ -498,3 +498,13 @@ verifiers:
     ownerPackage: '@treeseed/reviewer'
     testFile: tests/unit/guarantees/prerequisites.test.ts
     testName: discovers a declared native root beside companion packages and binds only its unique existing package identity
+  reviewer.prerequisites.source-runner:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/source-runner-custody.test.ts
+    testName: native source CLI runs its executing Reviewer complete suite beside the selected owner before every scene and retains failed runner coverage before fresh retry
+  reviewer.prerequisites.source-runner-mutation:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/source-runner-custody.test.ts
+    testName: native source CLI holds every candidate before the first owner suite so an earlier owner cannot replace the later executing runner authority

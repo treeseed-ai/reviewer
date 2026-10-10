@@ -10,6 +10,8 @@ import type { GuaranteeRunReport } from '@treeseed/sdk/guarantees';
 import type { LocalGuaranteePlan } from '../../src/verifiers/guarantees/command.ts';
 
 import { specificationFixture } from '../fixtures/guarantee-specification.ts';
+import { sourceRunnerFixture } from '../fixtures/source-runner.ts';
+import { roots as sourceRunnerRoots } from '../fixtures/guarantee-prerequisites.ts';
 
 function fixtureReport(overrides: Partial<GuaranteeRunReport> = {}): GuaranteeRunReport {
   return {
@@ -134,6 +136,7 @@ describe('guarantee run discovery', () => {
     for (const path of ['package.json', 'LICENSE', ...manifest.files]) capture(path);
     expect(bytes.has('dist/verifiers/guarantees/command.js')).toBe(true); expect(bytes.has('dist/verifiers/guarantees/node-case.js')).toBe(true);
     const archiveRoot = mkdtempSync(resolve(tmpdir(), 'reviewer-extracted-spec-'));
+    let runner: string | undefined;
     try {
       const native = (command: string, args: string[], cwd: string) => {
         const child = spawnSync(command, args, { cwd, encoding: 'utf8', timeout: 30_000, maxBuffer: 8 * 1024 * 1024 });
@@ -150,10 +153,14 @@ describe('guarantee run discovery', () => {
       const extracted = resolve(archiveRoot, 'package'); for (const [path, value] of bytes) expect(readFileSync(resolve(extracted, path))).toEqual(value);
       // Dependency resolution only; no source command or installed-dependency closure claim.
       symlinkSync(resolve(repository, 'node_modules'), resolve(extracted, 'node_modules'), 'dir');
+      // Execute the exact archive bytes in an independently rooted source
+      // fixture with complete suites, rather than treating extraction as Git custody.
+      runner = sourceRunnerFixture();
+      for (const [path, value] of bytes) { mkdirSync(resolve(runner, path, '..'), { recursive: true }); writeFileSync(resolve(runner, path), value); }
       const fixture = specificationFixture();
       try {
         const invoke = (runId: string, plan: boolean, ids = 'proof.unit,proof.native') => {
-          const args = [resolve(extracted, manifest.bin['treeseed-reviewer-guarantees']!), '--workspace', fixture.root, '--ids', ids, '--acceptance-spec', 'acceptance.md', '--run-id', runId, ...(plan ? ['--plan'] : [])];
+          const args = [resolve(runner!, manifest.bin['treeseed-reviewer-guarantees']!), '--workspace', fixture.root, '--ids', ids, '--acceptance-spec', 'acceptance.md', '--run-id', runId, ...(plan ? ['--plan'] : [])];
           const before = [...args], child = native(process.execPath, args, fixture.root);
           expect(args).toEqual(before); expect(child.stderr, child.stderr).toBe(''); expect(child.stdout.trim().split('\n')).toHaveLength(1);
           const report: LocalGuaranteePlan | GuaranteeRunReport = JSON.parse(child.stdout);
@@ -206,7 +213,10 @@ describe('guarantee run discovery', () => {
       for (const [path, value] of bytes) {
         expect(readFileSync(resolve(extracted, path))).toEqual(value); expect(readFileSync(resolve(repository, path))).toEqual(value);
       }
-    } finally { rmSync(archiveRoot, { recursive: true, force: true }); }
+    } finally {
+      if (runner) { rmSync(runner, { recursive: true, force: true }); sourceRunnerRoots.splice(sourceRunnerRoots.indexOf(runner), 1); }
+      rmSync(archiveRoot, { recursive: true, force: true });
+    }
   });
 
   it('packaged Reviewer denies new changed missing unbound and partial whole specifications before any native suite or scene', () => {

@@ -203,6 +203,8 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 	for(const root of roots) {
 		try {entrypoints.set(root,fullTestEntrypoint(root));}
 		catch {diagnostics.push(`${root}: complete prerequisite suite entrypoint or native reporting is unavailable.`);}
+		try {candidates.set(root,candidate(root));}
+		catch {diagnostics.push(`${root}: exact prerequisite candidate custody is unavailable.`);}
 	}
 	const admitted=diagnostics.length===0;
 	for (const root of roots) {
@@ -213,8 +215,10 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 		let reporter: string | undefined, reporterDigest: string | undefined;
 		const startedAt = new Date().toISOString();
 		try {
-			custody = candidate(root);
+			custody = candidates.get(root) ?? null;
 			if(!admitted)throw new Error('A participating full-suite entrypoint is unavailable.');
+			if(!custody)throw new Error('A participating exact candidate is unavailable.');
+			if(custodyDiagnostics(new Map([[root,custody]])).length)throw new Error('A held candidate changed before its complete suite.');
 			const {config,native,elixir,shell}=entrypoints.get(root)!;
 			let result, report;
 			if (elixir || shell) {
@@ -255,7 +259,6 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 			passed = status === 0 && !result.error && fullSuitePassed(report) && after.commit === custody.commit && after.sourceDigest === custody.sourceDigest
 				&& (!reporter || createHash('sha256').update(readFileSync(reporter)).digest('hex') === reporterDigest);
 			if (!passed) reason = 'Full prerequisite suite failed, skipped assertions, lacked complete evidence, or changed the candidate.';
-			else candidates.set(root, custody);
 		} catch { reason = 'Full prerequisite suite entrypoint, execution, evidence, or exact candidate custody is unavailable.'; }
 		finally { if (temporary) rmSync(temporary,{recursive:true,force:true}); }
 		writeFileSync(receiptPath, JSON.stringify({ root, ...custody, command, startedAt,
