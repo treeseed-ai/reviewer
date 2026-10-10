@@ -299,3 +299,6 @@ workflow:
   - id: source-runner-mutation
     action: {verifier: reviewer.prerequisites.source-runner-mutation}
     expect: {status: passed}
+  - id: action-source-custody
+    action: {verifier: reviewer.prerequisites.action-source-custody}
+    expect: {status: passed}

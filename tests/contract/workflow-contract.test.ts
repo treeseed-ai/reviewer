@@ -7,9 +7,11 @@ describe('reviewer verification workflow', () => {
     const action = parse(readFileSync('.github/actions/run-scenes/action.yml', 'utf8'));
     const steps = action.runs.steps as Array<Record<string, any>>;
     const checkout = steps.find(step => step.uses === 'actions/checkout@v4')!;
-    expect(checkout.with).toEqual({ repository: 'treeseed-ai/reviewer', ref: '${{ github.action_ref }}',
+    expect(checkout.with).toEqual({ repository: 'treeseed-ai/reviewer', ref: '${{ steps.reviewer-source.outputs.ref }}',
       path: '.treeseed/tools/reviewer', 'persist-credentials': false, 'fetch-depth': 1 });
+    expect(steps[0]!.id).toBe('reviewer-source');
     expect(steps[0]!.env.REVIEWER_REF).toBe('${{ github.action_ref }}');
+    expect(steps[0]!.run).toContain('"$GITHUB_OUTPUT"');
     expect(steps[0]!.run).toContain('test ! -e .treeseed/tools/reviewer');
     expect(steps[0]!.run).toContain('^[0-9a-f]{40}$');
     const execution = steps.find(step => step.name === 'Execute owner scenes')!;
