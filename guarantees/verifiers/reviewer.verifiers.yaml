@@ -36,6 +36,11 @@ verifiers:
     ownerPackage: '@treeseed/reviewer'
     testFile: tests/integration/guarantees/installed-custody.test.ts
     testName: holds and executes the explicitly supplied runner source whole suite once without traversing unrelated companion targets
+  reviewer.prerequisites.installed-cache-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantees/installed-custody.test.ts
+    testName: reuses integrity checked native production dependency cache without registry revalidation or install scripts
   reviewer.prerequisites.installed-production-native:
     kind: vitestCase
     ownerPackage: '@treeseed/reviewer'

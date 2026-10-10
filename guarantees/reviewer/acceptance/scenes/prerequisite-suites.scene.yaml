@@ -299,6 +299,9 @@ workflow:
   - id: installed-runner-native
     action: {verifier: reviewer.prerequisites.installed-runner-native}
     expect: {status: passed}
+  - id: installed-cache-native
+    action: {verifier: reviewer.prerequisites.installed-cache-native}
+    expect: {status: passed}
   - id: installed-production-native
     action: {verifier: reviewer.prerequisites.installed-production-native}
     expect: {status: passed}
