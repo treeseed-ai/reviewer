@@ -284,7 +284,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 	writeFileSync(resolve(output, 'report.json'), JSON.stringify(report, null, 2));
 	return report;
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && existsSync(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(resolve(process.argv[1]))).href) {
 	const option = (name: string) => { const index = process.argv.indexOf(`--${name}`); return index < 0 ? '' : process.argv[index + 1] ?? ''; };
 	const root = resolve(option('workspace') || process.cwd());
 	const plan = planLocalGuarantees(root, option('ids').split(',').filter(Boolean));
