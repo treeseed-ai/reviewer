@@ -34,6 +34,13 @@ runs:
     - name: Install the executing Reviewer suite dependencies
       shell: bash
       run: npm ci --prefix .treeseed/tools/reviewer --ignore-scripts --no-audit --no-fund
+    - name: Install the executing Reviewer exact SDK artifact
+      uses: treeseed-ai/sdk/.github/actions/install-exact-sdk@77a6908d4e7580716e9e2ab92de80150b02cdb06
+      env:
+        NODE_ENV: production
+      with:
+        github-token: ${{ github.token }}
+        paths: .treeseed/tools/reviewer/node_modules/@treeseed/sdk
     - name: Build the executing Reviewer archive assets
       shell: bash
       run: npm run --prefix .treeseed/tools/reviewer build:dist

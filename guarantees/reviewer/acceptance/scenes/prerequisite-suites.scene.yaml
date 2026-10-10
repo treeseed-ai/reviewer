@@ -320,3 +320,15 @@ workflow:
   - id: serial-complete-suite
     action: {verifier: reviewer.prerequisites.serial-complete-suite}
     expect: {status: passed}
+  - id: collection-file-unit
+    action: {verifier: reviewer.prerequisites.collection-file-unit}
+    expect: {status: passed}
+  - id: collection-file-native
+    action: {verifier: reviewer.prerequisites.collection-file-native}
+    expect: {status: passed}
+  - id: action-dependency-native
+    action: {verifier: reviewer.prerequisites.action-dependency-native}
+    expect: {status: passed}
+  - id: action-dependency-contract
+    action: {verifier: reviewer.prerequisites.action-dependency-contract}
+    expect: {status: passed}

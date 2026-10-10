@@ -1,5 +1,5 @@
 import {afterEach,expect,it} from 'vitest';
-import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,rmSync,symlinkSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {ownerTestCommand,fullSuiteFailures} from '../../../src/verifiers/guarantees/prerequisites.ts';
@@ -71,4 +71,16 @@ it('retains the first controlled criterion from later native failure messages wi
 		{title:'uncontrolled',status:'failed'}
 	]);
 	expect(evidence).toEqual(held); expect(JSON.stringify(fullSuiteFailures(evidence))).not.toContain('private');
+});
+
+it('retains owned failed collection files without inventing assertion identities or leaking native loader prose',()=>{
+ const root=fixture(),file=resolve(root,'unavailable.test.ts');writeFileSync(file,"import '@fixture/missing';");
+ const linked=resolve(root,'private-link.test.ts');symlinkSync(file,linked);
+ const unavailable=[resolve(root,'../private.test.ts'),resolve(root,'private-missing.test.ts'),root,linked,'private-relative.test.ts','',null,42];
+ const evidence={testResults:[{name:file,status:'failed',assertionResults:[],message:'private loader token stack'},
+  ...unavailable.map(name=>({name,status:'failed',assertionResults:[],message:'private outside path'})),
+  {name:file,status:'passed',assertionResults:[]}]},held=structuredClone(evidence);
+ expect(fullSuiteFailures(evidence,root)).toEqual([{file:'unavailable.test.ts',status:'collection_failed'},
+  ...unavailable.map(()=>({file:null,status:'collection_failed'}))]);
+ expect(JSON.stringify(fullSuiteFailures(evidence,root))).not.toContain('private');expect(evidence).toEqual(held);
 });

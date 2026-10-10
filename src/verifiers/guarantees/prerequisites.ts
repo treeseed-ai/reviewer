@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { runOwnedCommand } from './owned-command.ts';
 import { closeSync, constants, existsSync, fstatSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { resolve, relative, sep } from 'node:path';
+import { resolve, relative, sep, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
@@ -65,17 +65,32 @@ export function fullSuitePassed(value: unknown): boolean {
 	});
 }
 
-export function fullSuiteFailures(value: unknown) {
-	const files=row(value).testResults;
-	return Array.isArray(files) ? files.flatMap(file=>{
-		const assertions=row(file).assertionResults;
-		return Array.isArray(assertions) ? assertions.filter(value=>row(value).status!=='passed').map(value=>{
-			const assertion=row(value), messages=assertion.failureMessages;
-			const criterion=Array.isArray(messages)?messages.flatMap(message=>
-				typeof message==='string' ? failureCriterion(message) ?? [] : []).at(0):undefined;
-			return {title:assertion.title,status:assertion.status,...(criterion?{criterion}:{})};
-		}) : [];
-	}) : [];
+export function fullSuiteFailures(value: unknown, root = process.cwd()) {
+ const files=row(value).testResults;
+ const failures:Array<{title?:unknown,status:unknown,criterion?:string,file?:string|null}>=[];
+ if(!Array.isArray(files))return failures;
+ for(const value of files) {
+  const file=row(value),assertions=file.assertionResults;
+  if(file.status==='failed'&&(!Array.isArray(assertions)||assertions.length===0)) {
+   let owned:string|null=null;
+   try {
+    if(typeof file.name==='string'&&isAbsolute(file.name)) {
+     const canonicalRoot=realpathSync(root),actual=realpathSync(file.name),local=relative(canonicalRoot,actual);
+     if(actual===file.name&&local&&local!=='..'&&!local.startsWith(`..${sep}`)&&!isAbsolute(local)
+      &&lstatSync(actual).isFile())owned=local;
+    }
+   } catch { /* Unowned or unavailable collection identities remain redacted failures. */ }
+   failures.push({file:owned,status:'collection_failed'});
+  }
+  if(!Array.isArray(assertions))continue;
+  for(const value of assertions.filter(value=>row(value).status!=='passed')) {
+   const assertion=row(value),messages=assertion.failureMessages;
+   const criterion=Array.isArray(messages)?messages.flatMap(message=>
+    typeof message==='string'?failureCriterion(message)??[]:[]).at(0):undefined;
+   failures.push({title:assertion.title,status:assertion.status,...(criterion?{criterion}:{})});
+  }
+ }
+ return failures;
 }
 
 export function candidate(root: string) {
@@ -255,7 +270,7 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 			}
 			checks = { total: report.numTotalTests, passed: report.numPassedTests, failed: report.numFailedTests,
 				skipped: report.numPendingTests, todo: report.numTodoTests,
-				failures: fullSuiteFailures(report) };
+				failures: fullSuiteFailures(report,root) };
 			const after = candidate(root);
 			passed = status === 0 && !result.error && fullSuitePassed(report) && after.commit === custody.commit && after.sourceDigest === custody.sourceDigest
 				&& (!reporter || createHash('sha256').update(readFileSync(reporter)).digest('hex') === reporterDigest);
