@@ -29,6 +29,8 @@ function createProductionInstallation() {
  expect(installation.status,installation.stderr).toBe(0);
  installed=resolve(prefix,'node_modules');owner=resolve(installed,'@fixture/installed');runner=resolve(installed,'@treeseed/reviewer/dist/verifiers/guarantees/node-case.js');
  expect(existsSync(resolve(installed,'vitest'))).toBe(false);
+ expect(existsSync(resolve(installed,'@treeseed/cli')),
+  'Reviewer must execute its own runner without installing an unused companion CLI').toBe(false);
 }
 afterAll(()=>{if(installationRoot)rmSync(installationRoot,{recursive:true,force:true});});
 
