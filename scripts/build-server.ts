@@ -22,7 +22,7 @@ await build({
   target: 'node22',
   sourcemap: false,
   outbase: 'src',
-  external: ['@treeseed/sdk', '@treeseed/sdk/*', '@treeseed/cli', 'playwright-core', 'react', 'react-dom', 'yaml'],
+  external: ['@treeseed/sdk', '@treeseed/sdk/*', 'playwright-core', 'react', 'react-dom', 'yaml'],
 });
 
 const bin = resolve('dist/bin/reviewer.js');

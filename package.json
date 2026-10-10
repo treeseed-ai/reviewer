@@ -52,7 +52,6 @@
     "prepack": "npm run build:dist"
   },
   "dependencies": {
-    "@treeseed/cli": ">=0.13.0-rc.23 <0.14.0",
     "@treeseed/sdk": "git+https://github.com/treeseed-ai/sdk.git#77a6908d4e7580716e9e2ab92de80150b02cdb06",
     "@treeseed/ui": ">=0.12.18-rc.11 <0.14.0",
     "fflate": "0.8.2",
