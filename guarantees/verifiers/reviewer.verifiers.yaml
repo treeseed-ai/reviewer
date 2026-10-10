@@ -508,3 +508,8 @@ verifiers:
     ownerPackage: '@treeseed/reviewer'
     testFile: tests/integration/guarantees/source-runner-custody.test.ts
     testName: native source CLI holds every candidate before the first owner suite so an earlier owner cannot replace the later executing runner authority
+  reviewer.prerequisites.action-source-custody:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/action-source-custody.test.ts
+    testName: native composite source capture retains the exact Reviewer commit across nested action context and denies invalid refs before checkout

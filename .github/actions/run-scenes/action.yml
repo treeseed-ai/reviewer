@@ -8,6 +8,7 @@ runs:
   using: composite
   steps:
     - name: Require immutable Reviewer source
+      id: reviewer-source
       shell: bash
       env:
         REVIEWER_REF: ${{ github.action_ref }}
@@ -16,11 +17,12 @@ runs:
         [[ "${REVIEWER_REF}" =~ ^[0-9a-f]{40}$ ]] || { echo 'Reviewer scenes require an exact commit.' >&2; exit 1; }
         test -d node_modules
         test ! -e .treeseed/tools/reviewer
+        printf 'ref=%s\n' "$REVIEWER_REF" >> "$GITHUB_OUTPUT"
     - name: Check out the exact executing Reviewer candidate
       uses: actions/checkout@v4
       with:
         repository: treeseed-ai/reviewer
-        ref: ${{ github.action_ref }}
+        ref: ${{ steps.reviewer-source.outputs.ref }}
         path: .treeseed/tools/reviewer
         persist-credentials: false
         fetch-depth: 1
