@@ -1,4 +1,4 @@
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, onTestFailed } from 'vitest';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -8,12 +8,15 @@ import { candidate, runPrerequisites } from '../../../src/verifiers/guarantees/p
 import { runOwnedCommand } from '../../../src/verifiers/guarantees/owned-command.ts';
 
 let installationRoot:string,installed:string,owner:string,runner:string,source:string,workspace:string;
+const phases:{phase:string;durationMs:number;remainingMs:number}[]=[];
 const original="import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{value}from'./helper.ts';test('installed native bytes',()=>{assert.equal(value,'exact native bytes');assert.equal(readFileSync(new URL('./payload.txt',import.meta.url),'utf8'),'actual archived payload');});";
 function native(phase:string,command:string,args:string[],cwd:string,deadline:number) {
  const timeout=Math.floor(deadline-performance.now());
  let label=`ACCEPTANCE_INSTALLED_${phase}: Original native command boundary`;
  expect(timeout,label).toBeGreaterThan(0);
+ const started=performance.now();
  const result=runOwnedCommand(command,args,{cwd,encoding:'utf8',timeout,maxBuffer:8*1024*1024});
+ phases.push({phase,durationMs:performance.now()-started,remainingMs:deadline-performance.now()});
  const code=(result.error as NodeJS.ErrnoException|undefined)?.code;
  if(code&&['ETIMEDOUT','ENOENT','EACCES','EAGAIN','ENOBUFS','VERIFIER_SUBPROCESS_RESIDUE','VERIFIER_SUBPROCESS_CLOSURE_UNPROVEN'].includes(code))
   label=`ACCEPTANCE_INSTALLED_${phase}_${code}: Original native command boundary`;
@@ -35,10 +38,14 @@ function createProductionInstallation(deadline:number) {
  const dependencyManifest=JSON.parse(readFileSync(resolve(dependencySource,'package.json'),'utf8'));
  expect(dependencyManifest.name).toBe('@treeseed/sdk');
  const inputs=[source,repository,dependencySource],dependencyBytes=new Map<string,Buffer>();
+ const packed=native('PACK','npm',['pack',...inputs,'--ignore-scripts','--json','--pack-destination',installationRoot],repository,deadline);
+ expect(packed.status,packed.stderr).toBe(0);
+ const entries=JSON.parse(packed.stdout) as {name:string;filename:string;files:{path:string}[]}[];
+ expect(entries).toHaveLength(inputs.length);
  const archives=inputs.map(cwd=>{
-  const packed=native('PACK','npm',['pack','--ignore-scripts','--json','--pack-destination',installationRoot],cwd,deadline);
-  expect(packed.status,packed.stderr).toBe(0);const archive=JSON.parse(packed.stdout)[0];
-  if(cwd===dependencySource)for(const file of archive.files as {path:string}[])
+  const name=JSON.parse(readFileSync(resolve(cwd,'package.json'),'utf8')).name;
+  const matches=entries.filter(entry=>entry.name===name);expect(matches).toHaveLength(1);const archive=matches[0]!;
+  if(cwd===dependencySource)for(const file of archive.files)
    if(file.path!=='package.json')dependencyBytes.set(file.path,readFileSync(resolve(cwd,file.path)));
   return resolve(installationRoot,archive.filename);
  });
@@ -47,7 +54,7 @@ function createProductionInstallation(deadline:number) {
   dependencies:Object.fromEntries(inputs.map((cwd,index)=>[JSON.parse(readFileSync(resolve(cwd,'package.json'),'utf8')).name,`file:${archives[index]}`])),
   overrides:{'@treeseed/sdk':'$@treeseed/sdk'}}));
  const installation=native('INSTALL','npm',['install','--prefix',prefix,'--omit=dev','--ignore-scripts','--package-lock=false','--no-save',
-  '--no-audit','--no-fund','--cache',resolve(installationRoot,'npm-cache'),...archives],installationRoot,deadline);
+  '--no-audit','--no-fund',...archives],installationRoot,deadline);
  expect(installation.status,installation.stderr).toBe(0);
  expect(dependencyBytes.size).toBeGreaterThan(0);
  for(const [path,bytes]of dependencyBytes)expect(readFileSync(resolve(prefix,'node_modules/@treeseed/sdk',path)).equals(bytes),
@@ -86,6 +93,7 @@ it('holds and executes the explicitly supplied runner source whole suite once wi
 
 it('executes actual production-installed Reviewer and owner archives and retains denied checkout imports and missing-helper failures before exact retry',()=>{
  const deadline=performance.now()+30_000,workDeadline=deadline-5_000;let originalFailure:unknown;
+ phases.length=0;onTestFailed(()=>console.warn('ACCEPTANCE_INSTALLED_MEASURED_PHASES',JSON.stringify(phases)));
  try {
  expect(()=>native('EXECUTE',process.execPath,['-e','Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5000)'],tmpdir(),performance.now()+25))
   .toThrow('ACCEPTANCE_INSTALLED_EXECUTE_ETIMEDOUT');
