@@ -28,7 +28,13 @@ describe('reviewer verification workflow', () => {
     const dependencies = steps.find(step => step.name === 'Install the executing Reviewer suite dependencies')!;
     expect(dependencies.run).toBe('npm ci --prefix .treeseed/tools/reviewer --ignore-scripts --no-audit --no-fund');
     expect(steps.indexOf(dependencies)).toBeLessThan(steps.indexOf(execution));
+    const sdk = steps.find(step => typeof step.uses === 'string' && step.uses.startsWith('treeseed-ai/sdk/.github/actions/install-exact-sdk@'))!;
+    const declaredSdk = JSON.parse(readFileSync('package.json','utf8')).dependencies['@treeseed/sdk'].split('#')[1];
+    expect(sdk?.uses).toBe(`treeseed-ai/sdk/.github/actions/install-exact-sdk@${declaredSdk}`);
+    expect(sdk?.with).toEqual({'github-token':'${{ github.token }}',paths:'.treeseed/tools/reviewer/node_modules/@treeseed/sdk'});
+    expect(steps.indexOf(sdk)).toBeGreaterThan(steps.indexOf(dependencies));
     const build = steps.find(step => step.name === 'Build the executing Reviewer archive assets')!;
+    expect(steps.indexOf(sdk)).toBeLessThan(steps.indexOf(build));
     expect(build?.run).toBe('npm run --prefix .treeseed/tools/reviewer build:dist');
     expect(steps.indexOf(build)).toBeGreaterThan(steps.indexOf(dependencies));
     expect(steps.indexOf(build)).toBeLessThan(steps.indexOf(execution));

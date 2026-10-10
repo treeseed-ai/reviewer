@@ -72,3 +72,12 @@ it('retains the first controlled criterion from later native failure messages wi
 	]);
 	expect(evidence).toEqual(held); expect(JSON.stringify(fullSuiteFailures(evidence))).not.toContain('private');
 });
+
+it('retains owned failed collection files without inventing assertion identities or leaking native loader prose',()=>{
+ const root=fixture(),file=resolve(root,'unavailable.test.ts');writeFileSync(file,"import '@fixture/missing';");
+ const evidence={testResults:[{name:file,status:'failed',assertionResults:[],message:'private loader token stack'},
+  {name:resolve(root,'../private.test.ts'),status:'failed',assertionResults:[],message:'private outside path'},
+  {name:file,status:'passed',assertionResults:[]}]},held=structuredClone(evidence);
+ expect(fullSuiteFailures(evidence,root)).toEqual([{file:'unavailable.test.ts',status:'collection_failed'},{file:null,status:'collection_failed'}]);
+ expect(JSON.stringify(fullSuiteFailures(evidence,root))).not.toContain('private');expect(evidence).toEqual(held);
+});
