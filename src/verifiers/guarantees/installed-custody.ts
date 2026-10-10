@@ -46,15 +46,16 @@ export interface InstalledOwner {
  bins:Array<{path:string;target:string}>;
  pack:unknown;
 }
-function declaredBins(root:string,files:readonly {path:string}[]) {
+function declaredBins(root:string,files:readonly {path:string}[],installed:string) {
  const paths=new Set(files.map(file=>file.path)),links=new Map<string,string>();
  for(const file of files) {
   const match=/^(.*(?:^|\/)node_modules\/)((?:@[^/]+\/)?[^/]+)\/package\.json$/u.exec(file.path);
-  if(!match)continue;
+  const top=file.path==='package.json';if(!match&&!top)continue;
   const manifest=JSON.parse(regular(root,file.path).bytes.toString('utf8')) as {name?:unknown;bin?:unknown};
   if(manifest.bin===undefined)continue;
-  if(manifest.name!==match[2])throw new Error('Bundled command package identity differs from its archived location.');
-  const bins=typeof manifest.bin==='string'?{[match[2]!.split('/').at(-1)!]:manifest.bin}:manifest.bin;
+  if(typeof manifest.name!=='string'||! /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/u.test(manifest.name)||(!top&&manifest.name!==match![2]))
+   throw new Error('Command package identity differs from its archived location.');
+  const bins=typeof manifest.bin==='string'?{[manifest.name.split('/').at(-1)!]:manifest.bin}:manifest.bin;
   if(!bins||typeof bins!=='object'||Array.isArray(bins))throw new Error('Archived command declarations are malformed.');
   const packageRoot=dirname(resolve(root,file.path));
   for(const [name,value]of Object.entries(bins)) {
@@ -64,7 +65,7 @@ function declaredBins(root:string,files:readonly {path:string}[]) {
    if(!local||local==='..'||local.startsWith(`..${sep}`)||isAbsolute(local)||!paths.has(target))
     throw new Error('Installed commands require regular targets held in their own archived package.');
    regular(root,target);
-   const path=`${match[1]}.bin/${name}`,link=relative(dirname(resolve(root,path)),absolute);
+   const path=top?relative(root,resolve(installed,'.bin',name)):`${match![1]}.bin/${name}`,link=relative(dirname(resolve(root,path)),absolute);
    if(links.has(path))throw new Error('Bundled command identity is ambiguous.');links.set(path,link);
   }
  }
@@ -76,6 +77,8 @@ export function assetPaths(root:string,files:InstalledOwner['files'],bins:Instal
  const links=new Map(bins.map(bin=>[bin.path,bin.target]));
  for(const bin of bins) {
   const path=resolve(root,bin.path),target=resolve(dirname(path),bin.target);
+  if(realpathSync(dirname(path))!==dirname(path)||!lstatSync(dirname(path)).isDirectory())
+   throw new Error('Installed command directory is redirected or unavailable.');
   if(!lstatSync(path).isSymbolicLink()||readlinkSync(path)!==bin.target||realpathSync(path)!==target)
    throw new Error('Installed command links differ from their exact archived declarations.');
   regular(root,relative(root,target));
@@ -140,7 +143,7 @@ export function inspectInstalledOwner(sourceRoot:string,installed:string):Instal
    throw new Error('Installed assets differ from the held archive.');
   return {path:file.path,sha256:digest(asset.bytes),mode:asset.mode};
  });
- const bins=declaredBins(root,files);
+ const bins=declaredBins(root,files,installed);
  if(JSON.stringify(assetPaths(root,files,bins))!==JSON.stringify(files.map(file=>file.path).sort()))
   throw new Error('Installed owner contains missing or unarchived assets.');
  const manifest=JSON.parse(regular(root,'package.json').bytes.toString('utf8')) as {name:string;version:string};
