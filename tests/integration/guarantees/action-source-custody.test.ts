@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -60,6 +60,7 @@ import {planLocalGuarantees,runLocalGuarantees} from './.treeseed/tools/reviewer
 assert.equal(typeof planLocalGuarantees,'function');assert.equal(typeof runLocalGuarantees,'function');`);
     const loaded = spawnSync(process.execPath, ['consumer.ts'], { cwd: root, encoding: 'utf8', timeout: 5_000 });
     expect(loaded.error).toBeUndefined(); expect(loaded.status, loaded.stderr).toBe(0);
+    unlinkSync(resolve(destination, 'node_modules'));
     expect(git(destination, ['status', '--porcelain']).stdout).toBe('');
     rmSync(resolve(root, '.treeseed'), { recursive: true });
     for (const [index, ref] of ['', 'v4', 'staging', 'a'.repeat(39), 'a'.repeat(41), 'A'.repeat(40), `${commit}\nref=staging`].entries()) {
