@@ -34,6 +34,9 @@ runs:
     - name: Install the executing Reviewer suite dependencies
       shell: bash
       run: npm ci --prefix .treeseed/tools/reviewer --ignore-scripts --no-audit --no-fund
+    - name: Build the executing Reviewer archive assets
+      shell: bash
+      run: npm run --prefix .treeseed/tools/reviewer build:dist
     - name: Execute owner scenes
       shell: bash
       env:

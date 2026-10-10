@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -40,6 +40,28 @@ it('native composite source capture retains the exact Reviewer commit across nes
     expect(git(destination, ['checkout', '--quiet', '--detach', 'FETCH_HEAD']).status).toBe(0);
     expect(git(destination, ['rev-parse', 'HEAD']).stdout.trim()).toBe(commit);
     expect(readFileSync(resolve(destination, 'package.json'))).toEqual(readFileSync(resolve(source, 'package.json')));
+    expect(existsSync(resolve(destination, 'dist'))).toBe(false);
+    symlinkSync(resolve(source, 'node_modules'), resolve(destination, 'node_modules'), 'dir');
+    const build = action.runs.steps.find((step: { name: string }) => step.name === 'Build the executing Reviewer archive assets');
+    if (build) {
+      const built = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', build.run], {
+        cwd: root, encoding: 'utf8', timeout: 15_000, maxBuffer: 8 * 1024 * 1024,
+      });
+      expect(built.error).toBeUndefined(); expect(built.signal).toBeNull(); expect(built.status, built.stderr).toBe(0);
+    }
+    const inventory = spawnSync('npm', ['pack', '--dry-run', '--ignore-scripts', '--json'], {
+      cwd: destination, encoding: 'utf8', timeout: 5_000,
+    });
+    expect(inventory.error).toBeUndefined(); expect(inventory.status, inventory.stderr).toBe(0);
+    const paths = JSON.parse(inventory.stdout)[0].files.map((file: { path: string }) => file.path);
+    for (const path of ['dist/verifiers/guarantees/command.js', 'dist/verifiers/guarantees/node-case.js']) expect(paths).toContain(path);
+    writeFileSync(resolve(root, 'consumer.ts'), `import assert from 'node:assert/strict';
+import {planLocalGuarantees,runLocalGuarantees} from './.treeseed/tools/reviewer/dist/verifiers/guarantees/command.js';
+assert.equal(typeof planLocalGuarantees,'function');assert.equal(typeof runLocalGuarantees,'function');`);
+    const loaded = spawnSync(process.execPath, ['consumer.ts'], { cwd: root, encoding: 'utf8', timeout: 5_000 });
+    expect(loaded.error).toBeUndefined(); expect(loaded.status, loaded.stderr).toBe(0);
+    unlinkSync(resolve(destination, 'node_modules'));
+    expect(git(destination, ['status', '--porcelain']).stdout).toBe('');
     rmSync(resolve(root, '.treeseed'), { recursive: true });
     for (const [index, ref] of ['', 'v4', 'staging', 'a'.repeat(39), 'a'.repeat(41), 'A'.repeat(40), `${commit}\nref=staging`].entries()) {
       const denied = capture(ref, index + 1); expect(denied.result.status).not.toBe(0); expect(denied.output).toBe('');

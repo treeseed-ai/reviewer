@@ -1,8 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import testConfiguration from '../../vitest.config.ts';
+import guaranteeConfiguration from '../../vitest.guarantees.config.ts';
 
 describe('reviewer verification workflow', () => {
+  it('runs the entire owning suite serially under unchanged assertion deadlines', () => {
+    for (const configuration of [testConfiguration, guaranteeConfiguration]) {
+      expect(configuration.test?.include).toEqual(['tests/**/*.test.ts']);
+      expect(configuration.test?.testTimeout).toBe(30_000);
+      expect(configuration.test?.fileParallelism).toBe(false);
+    }
+  });
   it('runs one immutable owner scene implementation and retains failure evidence', () => {
     const action = parse(readFileSync('.github/actions/run-scenes/action.yml', 'utf8'));
     const steps = action.runs.steps as Array<Record<string, any>>;
@@ -19,6 +28,10 @@ describe('reviewer verification workflow', () => {
     const dependencies = steps.find(step => step.name === 'Install the executing Reviewer suite dependencies')!;
     expect(dependencies.run).toBe('npm ci --prefix .treeseed/tools/reviewer --ignore-scripts --no-audit --no-fund');
     expect(steps.indexOf(dependencies)).toBeLessThan(steps.indexOf(execution));
+    const build = steps.find(step => step.name === 'Build the executing Reviewer archive assets')!;
+    expect(build?.run).toBe('npm run --prefix .treeseed/tools/reviewer build:dist');
+    expect(steps.indexOf(build)).toBeGreaterThan(steps.indexOf(dependencies));
+    expect(steps.indexOf(build)).toBeLessThan(steps.indexOf(execution));
     expect(steps.find(step => step.uses === 'erlef/setup-beam@v1')!.with).toEqual({ 'otp-version': '27.3.4.18', 'elixir-version': '1.17.3' });
     expect(execution.run).toContain('--import ./.treeseed/tools/reviewer/node_modules/tsx/dist/loader.mjs');
     expect(JSON.stringify(steps)).not.toContain('cp -a');

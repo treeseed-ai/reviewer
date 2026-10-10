@@ -418,10 +418,11 @@ it('blocks a copied nested owner before suites instead of borrowing its parent r
 	const parent=fixture(),root=resolve(parent,'copied-owner');
 	cpSync(fixture(),root,{recursive:true});rmSync(resolve(root,'.git'),{recursive:true,force:true});
 	const report=runLocalGuarantees(root,planLocalGuarantees(root,['proof']),'inherited-root');
-	expect(report.ok).toBe(false);
-	expect(existsSync(resolve(root,'.treeseed/order'))).toBe(false);
+	expect(report.ok,'ACCEPTANCE_PREREQUISITE_COPIED_OWNER: Inherited Git is not owner custody').toBe(false);
+	expect(existsSync(resolve(root,'.treeseed/order')),'ACCEPTANCE_PREREQUISITE_COPIED_OWNER_EXECUTION: No suite or scene may start').toBe(false);
 	const receipt=JSON.parse(readFileSync(resolve(root,'.treeseed/guarantees/runs/inherited-root',report.results[0]!.evidence.at(-1)!),'utf8'));
-	expect(receipt.passed).toBe(false);expect(receipt.command).toEqual([]);
+	expect(receipt.passed,'ACCEPTANCE_PREREQUISITE_COPIED_OWNER_RECEIPT: Missing owner custody must fail').toBe(false);
+	expect(receipt.command,'ACCEPTANCE_PREREQUISITE_COPIED_OWNER_COMMAND: No native command may start').toEqual([]);
 });
 
 it('fails final-scene deletion of literal missing bytes without rewriting a passed suite receipt',()=>{
