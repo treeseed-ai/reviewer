@@ -10,9 +10,13 @@ import { runOwnedCommand } from '../../../src/verifiers/guarantees/owned-command
 let installationRoot:string,installed:string,owner:string,runner:string,source:string,workspace:string;
 const original="import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{value}from'./helper.ts';test('installed native bytes',()=>{assert.equal(value,'exact native bytes');assert.equal(readFileSync(new URL('./payload.txt',import.meta.url),'utf8'),'actual archived payload');});";
 function native(phase:string,command:string,args:string[],cwd:string,deadline:number) {
- const timeout=Math.floor(deadline-performance.now()),label=`ACCEPTANCE_INSTALLED_${phase}: Original native command boundary`;
+ const timeout=Math.floor(deadline-performance.now());
+ let label=`ACCEPTANCE_INSTALLED_${phase}: Original native command boundary`;
  expect(timeout,label).toBeGreaterThan(0);
  const result=runOwnedCommand(command,args,{cwd,encoding:'utf8',timeout,maxBuffer:8*1024*1024});
+ const code=(result.error as NodeJS.ErrnoException|undefined)?.code;
+ if(code&&['ETIMEDOUT','ENOENT','EACCES','EAGAIN','ENOBUFS','VERIFIER_SUBPROCESS_RESIDUE','VERIFIER_SUBPROCESS_CLOSURE_UNPROVEN'].includes(code))
+  label=`ACCEPTANCE_INSTALLED_${phase}_${code}: Original native command boundary`;
  expect(result.error,label).toBeUndefined();expect(result.signal,label).toBeNull();return result;
 }
 function createProductionInstallation(deadline:number) {
@@ -64,6 +68,8 @@ it('holds and executes the explicitly supplied runner source whole suite once wi
 it('executes actual production-installed Reviewer and owner archives and retains denied checkout imports and missing-helper failures before exact retry',()=>{
  const deadline=performance.now()+30_000,workDeadline=deadline-5_000;let originalFailure:unknown;
  try {
+ expect(()=>native('EXECUTE',process.execPath,['-e','Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5000)'],tmpdir(),performance.now()+25))
+  .toThrow('ACCEPTANCE_INSTALLED_EXECUTE_ETIMEDOUT');
  createProductionInstallation(workDeadline);
  const command=resolve(installed,'@treeseed/reviewer/dist/verifiers/guarantees/command.js');
  const planned=native('PLAN',process.execPath,[command,'--workspace',workspace,'--ids','proof','--plan','--installed-packages',installed],installationRoot,workDeadline);

@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync }
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { candidate, custodyDiagnostics, fullSuitePassed, ownerTestCommand, participatingOwners } from '../../../src/verifiers/guarantees/prerequisites.ts';
+import { candidate, custodyDiagnostics, fullSuiteFailures, fullSuitePassed, ownerTestCommand, participatingOwners } from '../../../src/verifiers/guarantees/prerequisites.ts';
 import { planLocalGuarantees, type LocalGuaranteePlan } from '../../../src/verifiers/guarantees/command.ts';
 
 const report = () => ({ success: true, numTotalTests: 2, numPassedTests: 2, numFailedTests: 0,
@@ -14,6 +14,11 @@ afterEach(() => { for (const root of roots.splice(0)) rmSync(root,{recursive:tru
 
 it('accepts only complete observed full-suite evidence without skipped pending or failed boundaries', () => {
 	expect(fullSuitePassed(report())).toBe(true);
+	for(const code of ['ETIMEDOUT','VERIFIER_SUBPROCESS_RESIDUE','VERIFIER_SUBPROCESS_CLOSURE_UNPROVEN']) {
+		const criterion=`ACCEPTANCE_INSTALLED_EXECUTE_${code}`;
+		const failed={testResults:[{assertionResults:[{title:'native installed command',status:'failed',failureMessages:[`${criterion}: Original native command boundary`]}]}]};
+		expect(fullSuiteFailures(failed)).toEqual([{title:'native installed command',status:'failed',criterion}]);
+	}
 	for (const patch of [{success:false},{numTotalTests:0},{numTotalTests:'2'},{numTotalTests:3},{numPassedTests:1},
 		{numFailedTests:1},{numPendingTests:1},{numTodoTests:1},{numFailedTestSuites:1},{numPendingTestSuites:1},
 		{testResults:[]},{testResults:[{assertionResults:[]}]},{testResults:null}])
