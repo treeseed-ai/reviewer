@@ -29,9 +29,14 @@ describe('reviewer verification workflow', () => {
     expect(dependencies.run).toBe('npm ci --prefix .treeseed/tools/reviewer --ignore-scripts --no-audit --no-fund');
     expect(steps.indexOf(dependencies)).toBeLessThan(steps.indexOf(execution));
     const sdk = steps.find(step => typeof step.uses === 'string' && step.uses.startsWith('treeseed-ai/sdk/.github/actions/install-exact-sdk@'))!;
-    const declaredSdk = JSON.parse(readFileSync('package.json','utf8')).dependencies['@treeseed/sdk'].split('#')[1];
-    expect(sdk?.uses).toBe(`treeseed-ai/sdk/.github/actions/install-exact-sdk@${declaredSdk}`);
-    expect(sdk?.with).toEqual({'github-token':'${{ github.token }}',paths:'.treeseed/tools/reviewer/node_modules/@treeseed/sdk'});
+    expect(sdk?.uses).toMatch(/^treeseed-ai\/sdk\/\.github\/actions\/install-exact-sdk@[a-f0-9]{40}$/u);
+    expect(sdk?.with).toEqual({'github-token':'${{ github.token }}',commit:'${{ steps.reviewer-prerequisites.outputs.sdk-commit }}',paths:'.treeseed/tools/reviewer/node_modules/@treeseed/sdk'});
+    const preparation=steps.find(step=>step.id==='reviewer-prerequisites')!;
+    expect(preparation?.run).toBe('node --import ./.treeseed/tools/reviewer/node_modules/tsx/dist/loader.mjs .treeseed/tools/reviewer/scripts/scene-action-prerequisites.ts');
+    expect(steps.indexOf(preparation)).toBeGreaterThan(steps.indexOf(dependencies));
+    const toolchain=steps.find(step=>step.uses==='erlef/setup-beam@v1')!;
+    expect(toolchain.if).toBe("steps.reviewer-prerequisites.outputs.toolchain-ready != 'true'");
+    expect(steps.indexOf(toolchain)).toBeGreaterThan(steps.indexOf(preparation));
     expect(steps.indexOf(sdk)).toBeGreaterThan(steps.indexOf(dependencies));
     const build = steps.find(step => step.name === 'Build the executing Reviewer archive assets')!;
     expect(steps.indexOf(sdk)).toBeLessThan(steps.indexOf(build));
