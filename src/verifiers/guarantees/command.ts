@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash, randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { runOwnedCommand } from './owned-command.ts';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, resolve, relative, sep } from 'node:path';
@@ -241,7 +241,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 			: [...(import.meta.url.endsWith('.ts') ? ['--import', createRequire(import.meta.url).resolve('tsx')] : []),
 				fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`, import.meta.url)), inside(binding.root, testFile), testName,...(installedPackages?[realpathSync(installedPackages)]:[])];
 		const timeoutMs = verifierTimeout(Reflect.get(binding.definition, 'timeoutMs'));
-		const result = spawnSync(process.execPath, args, { cwd: binding.root, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 });
+		const result = runOwnedCommand(process.execPath, args, { cwd: binding.root, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 });
 		let passed = false;
 		let observed: Array<{ title: string; status: string; duration: number; failure?: unknown }> = [];
 		try {
@@ -253,7 +253,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 					...(binding.definition.kind === 'vitestCase' && check.status === 'failed'
 						? { failure: selectedVitestFailure(check.failureMessages, relative(binding.root, inside(binding.root, testFile)), inside(binding.root, testFile)) }
 						: binding.definition.kind === 'nodeTestCase' && check.failure ? { failure: check.failure } : {}) }));
-			passed = result.status === 0 && report.success === true && Number.isInteger(report.numPassedTests)
+			passed = !result.error && result.status === 0 && report.success === true && Number.isInteger(report.numPassedTests)
 				&& report.numPassedTests > 0 && report.numFailedTests === 0 && observed.length === report.numPassedTests
 				&& observed.every(check => check.status === 'passed' && Number.isFinite(check.duration) && check.duration >= 0);
 		} catch { /* Missing/malformed evidence fails closed. */ }

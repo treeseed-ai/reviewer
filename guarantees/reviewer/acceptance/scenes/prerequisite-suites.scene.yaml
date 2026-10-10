@@ -302,3 +302,21 @@ workflow:
   - id: action-source-custody
     action: {verifier: reviewer.prerequisites.action-source-custody}
     expect: {status: passed}
+  - id: owned-command-output
+    action: {verifier: reviewer.prerequisites.owned-command-output}
+    expect: {status: passed}
+  - id: owned-command-bounds
+    action: {verifier: reviewer.prerequisites.owned-command-bounds}
+    expect: {status: passed}
+  - id: owned-command-host
+    action: {verifier: reviewer.prerequisites.owned-command-host}
+    expect: {status: passed}
+  - id: owned-suite-descendants
+    action: {verifier: reviewer.prerequisites.owned-suite-descendants}
+    expect: {status: passed}
+  - id: owned-verifier-descendants
+    action: {verifier: reviewer.prerequisites.owned-verifier-descendants}
+    expect: {status: passed}
+  - id: serial-complete-suite
+    action: {verifier: reviewer.prerequisites.serial-complete-suite}
+    expect: {status: passed}

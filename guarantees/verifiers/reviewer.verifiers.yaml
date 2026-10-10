@@ -513,3 +513,33 @@ verifiers:
     ownerPackage: '@treeseed/reviewer'
     testFile: tests/integration/guarantees/action-source-custody.test.ts
     testName: native composite source capture retains the exact Reviewer commit across nested action context and denies invalid refs before checkout
+  reviewer.prerequisites.owned-command-output:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/unit/guarantees/owned-command.test.ts
+    testName: preserves native outputs literal arguments nonzero exits and unavailable commands without relaxing original bounds
+  reviewer.prerequisites.owned-command-bounds:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/unit/guarantees/owned-command.test.ts
+    testName: kills only its original timed-out or overflowing native command and retains the original failure classification
+  reviewer.prerequisites.owned-command-host:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/unit/guarantees/owned-command.test.ts
+    testName: rejects an unsupported process-group host before launching an unowned native command
+  reviewer.prerequisites.owned-suite-descendants:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/process-custody.test.ts
+    testName: native complete suites cannot leave a live owned descendant behind a passing report or continue into scenes
+  reviewer.prerequisites.owned-verifier-descendants:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/process-custody.test.ts
+    testName: native selected verifier residue is closed and blocks later scenes while an unrelated owned group remains live
+  reviewer.prerequisites.serial-complete-suite:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/contract/workflow-contract.test.ts
+    testName: runs the entire owning suite serially under unchanged assertion deadlines

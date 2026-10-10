@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { runOwnedCommand } from './owned-command.ts';
 import { closeSync, constants, existsSync, fstatSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve, relative, sep } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -225,7 +226,7 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 				// The owner's original whole-suite command emits the existing assertion report.
 				// Never infer assertions from exit zero or recover JSON from mixed stdout.
 				command = elixir ? ['elixir',elixir] : ['bash',shell!];
-				result = spawnSync(command[0]!,command.slice(1),{cwd:root,encoding:'utf8',timeout:1_200_000,maxBuffer:32*1024*1024});
+				result = runOwnedCommand(command[0]!,command.slice(1),{cwd:root,encoding:'utf8',timeout:1_200_000,maxBuffer:32*1024*1024});
 				status = result.status; signal = result.signal;
 				report = JSON.parse(result.stdout);
 			} else if (!native) {
@@ -233,7 +234,7 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 				temporary = mkdtempSync(resolve(tmpdir(),'guarantee-vitest-suite-'));
 				const destination = resolve(temporary,'report.json');
 				command = [process.execPath,realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', ...(config ? ['--config', config] : []), '--reporter=json', `--outputFile=${destination}`];
-				result = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 1_200_000, maxBuffer: 32 * 1024 * 1024 });
+				result = runOwnedCommand(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 1_200_000, maxBuffer: 32 * 1024 * 1024 });
 				status = result.status; signal = result.signal;
 				report = JSON.parse(readFileSync(destination,'utf8'));
 			} else {
@@ -248,7 +249,7 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 				temporary = mkdtempSync(resolve(tmpdir(),'guarantee-native-suite-'));
 				const destination = resolve(temporary,'report.json');
 				command = ['npm','test','--',`--test-reporter=${reporterSpecifier}`,`--test-reporter-destination=${destination}`];
-				result = spawnSync(command[0]!,command.slice(1),{cwd:root,encoding:'utf8',timeout:1_200_000,maxBuffer:32*1024*1024});
+				result = runOwnedCommand(command[0]!,command.slice(1),{cwd:root,encoding:'utf8',timeout:1_200_000,maxBuffer:32*1024*1024});
 				status = result.status; signal = result.signal;
 				report = JSON.parse(readFileSync(destination,'utf8'));
 			}
@@ -258,7 +259,9 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 			const after = candidate(root);
 			passed = status === 0 && !result.error && fullSuitePassed(report) && after.commit === custody.commit && after.sourceDigest === custody.sourceDigest
 				&& (!reporter || createHash('sha256').update(readFileSync(reporter)).digest('hex') === reporterDigest);
-			if (!passed) reason = 'Full prerequisite suite failed, skipped assertions, lacked complete evidence, or changed the candidate.';
+			if (!passed) reason = result.error?.message.startsWith('Native command left owned descendants')
+				|| result.error?.message.startsWith('Owned native command') ? result.error.message
+				: 'Full prerequisite suite failed, skipped assertions, lacked complete evidence, or changed the candidate.';
 		} catch { reason = 'Full prerequisite suite entrypoint, execution, evidence, or exact candidate custody is unavailable.'; }
 		finally { if (temporary) rmSync(temporary,{recursive:true,force:true}); }
 		writeFileSync(receiptPath, JSON.stringify({ root, ...custody, command, startedAt,
