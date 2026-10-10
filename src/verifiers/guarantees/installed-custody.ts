@@ -70,7 +70,9 @@ function declaredBins(root:string,files:readonly {path:string}[]) {
  }
  return [...links].sort(([a],[b])=>a<b?-1:a>b?1:0).map(([path,target])=>({path,target}));
 }
-function assetPaths(root:string,bundled:boolean,bins:InstalledOwner['bins']):string[] {
+export function assetPaths(root:string,files:InstalledOwner['files'],bins:InstalledOwner['bins']):string[] {
+ const archived=new Set(files.map(file=>file.path)),bundled=files.some(file=>file.path.startsWith('node_modules/'));
+ const dependencies=(JSON.parse(regular(root,'package.json').bytes.toString('utf8')) as {dependencies?:Record<string,unknown>}).dependencies??{};
  const links=new Map(bins.map(bin=>[bin.path,bin.target]));
  for(const bin of bins) {
   const path=resolve(root,bin.path),target=resolve(dirname(path),bin.target);
@@ -85,7 +87,20 @@ function assetPaths(root:string,bundled:boolean,bins:InstalledOwner['bins']):str
    if(links.has(path))return [];
    throw new Error('Installed owner contains redirected assets.');
   }
-  return entry.isDirectory()?walk(path):[path];
+  if(entry.isDirectory()) {
+   const dependency=/^node_modules\/((?:@[^/]+\/)?[^/.@][^/]*)$/u.exec(path)?.[1];
+   if(dependency&&!archived.has(`${path}/package.json`)) {
+    if(!Object.hasOwn(dependencies,dependency)||typeof dependencies[dependency]!=='string'||!dependencies[dependency])
+     throw new Error('Installed owner contains an undeclared dependency directory.');
+    const manifest=JSON.parse(regular(root,`${path}/package.json`).bytes.toString('utf8')) as {name?:unknown};
+    if(manifest.name!==dependency)throw new Error('Installed production dependency identity differs from its declared location.');
+    // npm may nest separately installed dependencies beside bundled payload.
+    // Their bytes are not this owner's archive; never certify them as such.
+    return [];
+   }
+   return walk(path);
+  }
+  return [path];
  });
  return walk('').sort();
 }
@@ -123,7 +138,7 @@ export function inspectInstalledOwner(sourceRoot:string,installed:string):Instal
   return {path:file.path,sha256:digest(asset.bytes),mode:asset.mode};
  });
  const bins=declaredBins(root,files);
- if(JSON.stringify(assetPaths(root,files.some(file=>file.path.startsWith('node_modules/')),bins))!==JSON.stringify(files.map(file=>file.path).sort()))
+ if(JSON.stringify(assetPaths(root,files,bins))!==JSON.stringify(files.map(file=>file.path).sort()))
   throw new Error('Installed owner contains missing or unarchived assets.');
  const manifest=JSON.parse(regular(root,'package.json').bytes.toString('utf8')) as {name:string;version:string};
  if(manifest.name!==source.name||manifest.version!==source.version)throw new Error('Installed package identity differs from its source.');
@@ -137,7 +152,7 @@ export function installedCustodyDiagnostics(owners:readonly InstalledOwner[]) {
     const asset=regular(owner.root,file.path);
     if(digest(asset.bytes)!==file.sha256||asset.mode!==file.mode)throw new Error();
    }
-   if(JSON.stringify(assetPaths(owner.root,owner.files.some(file=>file.path.startsWith('node_modules/')),owner.bins))!==JSON.stringify(owner.files.map(file=>file.path).sort()))throw new Error();
+   if(JSON.stringify(assetPaths(owner.root,owner.files,owner.bins))!==JSON.stringify(owner.files.map(file=>file.path).sort()))throw new Error();
    return [];
   } catch {return [`${owner.name}: Installed assets or held archive changed or became unavailable.`];}
  });

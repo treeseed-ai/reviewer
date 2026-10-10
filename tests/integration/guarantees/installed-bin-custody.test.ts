@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import ts from 'typescript';
@@ -42,7 +42,7 @@ it('native production bundled command links bind only declared archived regular 
    if(mode==='undeclared-package'){mkdirSync(resolve(owner,'node_modules/@fixture/undeclared'));writeFileSync(resolve(owner,'node_modules/@fixture/undeclared/package.json'),JSON.stringify({name:'@fixture/undeclared',version:'1.0.0'}));}
    if(mode==='loose-file')writeFileSync(resolve(owner,'node_modules/@fixture/invented.cjs'),code);
    expect(()=>inspectInstalledOwner(source,installed),mode).toThrow();expect(installedCustodyDiagnostics([held]).length,mode).toBeGreaterThan(0);
-   if(mode==='redirected-root'){rmSync(nested);renameSync(saved,nested);}
+   if(mode==='redirected-root'){unlinkSync(nested);renameSync(saved,nested);}
    writeFileSync(runtimeManifest,runtimeBytes);rmSync(resolve(owner,'node_modules/@fixture/undeclared'),{recursive:true,force:true});rmSync(resolve(owner,'node_modules/@fixture/invented.cjs'),{force:true});
    expect(installedCustodyDiagnostics([held]),mode).toEqual([]);
   }
