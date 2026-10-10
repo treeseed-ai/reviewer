@@ -1,7 +1,8 @@
-import { afterEach, expect, it, onTestFailed } from 'vitest';
-import { appendFileSync, unlinkSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { afterEach, expect, it, onTestFailed, vi } from 'vitest';
+import { appendFileSync, chmodSync, unlinkSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { delimiter, resolve } from 'node:path';
+import ts from 'typescript';
 import { fixture, roots, productionInstallFlags } from '../../fixtures/guarantee-prerequisites.ts';
 import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
@@ -13,7 +14,7 @@ import { runOwnedCommand } from '../../../src/verifiers/guarantees/owned-command
 
 let installationRoot:string,installed:string,owner:string,runner:string,source:string,workspace:string;
 const phases:{phase:string;durationMs:number;remainingMs:number}[]=[];
-const original="import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{value}from'./helper.ts';test('installed native bytes',()=>{assert.equal(value,'exact native bytes');assert.equal(readFileSync(new URL('./payload.txt',import.meta.url),'utf8'),'actual archived payload');});";
+const original="import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{execFileSync}from'node:child_process';import{value}from'./helper.ts';test('installed native bytes',()=>{assert.equal(value,'exact native bytes');assert.equal(readFileSync(new URL('./payload.txt',import.meta.url),'utf8'),'actual archived payload');assert.equal(execFileSync('fixture-installed-command',[],{encoding:'utf8'}),'actual archived command');});";
 function native(phase:string,command:string,args:string[],cwd:string,deadline:number) {
  const timeout=Math.floor(deadline-performance.now());
  let label=`ACCEPTANCE_INSTALLED_${phase}: Original native command boundary`;
@@ -31,7 +32,8 @@ function createProductionInstallation(deadline:number) {
  const repository=resolve(import.meta.dirname,'../../..');workspace=resolve(installationRoot,'workspace');source=resolve(workspace,'packages/native');
  mkdirSync(resolve(workspace,'packages'),{recursive:true});renameSync(fixture(),source);symlinkSync(repository,resolve(workspace,'packages/reviewer'),'dir');
  mkdirSync(resolve(source,'assets'));
- writeFileSync(resolve(source,'package.json'),JSON.stringify({name:'@fixture/installed',version:'1.0.0',type:'module',files:['assets','guarantees','treeseed.package.yaml'],scripts:{test:'vitest run --config ./vitest.config.ts'}}));
+ writeFileSync(resolve(source,'package.json'),JSON.stringify({name:'@fixture/installed',version:'1.0.0',type:'module',files:['assets','guarantees','command.mjs','treeseed.package.yaml'],bin:{'fixture-installed-command':'./command.mjs'},scripts:{test:'vitest run --config ./vitest.config.ts'}}));
+ writeFileSync(resolve(source,'command.mjs'),ts.transpileModule("#!/usr/bin/env node\nprocess.stdout.write('actual archived command');",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);chmodSync(resolve(source,'command.mjs'),0o755);
  writeFileSync(resolve(source,'guarantees/proof.guarantee.yaml'),'id: proof\nownerPackage: "@fixture/installed"\nscene: { required: true, manifest: guarantees/proof.scene.yaml }\n');
  writeFileSync(resolve(source,'guarantees/proof.scene.yaml'),JSON.stringify({scope:'local-component-tests',workflow:[{id:'native',action:{verifier:'proof.scene'},expect:{status:'passed'}}]}));
  writeFileSync(resolve(source,'guarantees/proof.verifiers.yaml'),JSON.stringify({verifiers:{'proof.scene':{kind:'nodeTestCase',ownerPackage:'@fixture/installed',testFile:'assets/proof.test.ts',testName:'installed native bytes'}}}));
@@ -71,7 +73,7 @@ function createProductionInstallation(deadline:number) {
  expect(existsSync(resolve(installed,'@treeseed/cli')),
   'Reviewer must execute its own runner without installing an unused companion CLI').toBe(false);
 }
-afterEach(()=>{for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true});});
+afterEach(()=>{vi.unstubAllEnvs();for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true});});
 
 it('reuses integrity checked native production dependency cache without registry revalidation or install scripts',async()=>{
  const root=mkdtempSync(resolve(tmpdir(),'reviewer-native-install-cache-'));roots.push(root);
@@ -149,6 +151,9 @@ it('executes actual production-installed Reviewer and owner archives and retains
  expect(()=>native('EXECUTE',process.execPath,['-e','Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5000)'],tmpdir(),performance.now()+25))
   .toThrow('ACCEPTANCE_INSTALLED_EXECUTE_ETIMEDOUT');
  createProductionInstallation(workDeadline);
+ const foreign=resolve(installationRoot,'uninstalled-commands');mkdirSync(foreign);
+ writeFileSync(resolve(foreign,'fixture-installed-command'),ts.transpileModule("#!/usr/bin/env node\nprocess.stdout.write('uninstalled source fallback');",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);
+ chmodSync(resolve(foreign,'fixture-installed-command'),0o755);vi.stubEnv('PATH',foreign+delimiter+(process.env.PATH??''));
  const command=resolve(installed,'@treeseed/reviewer/dist/verifiers/guarantees/command.js');
  const planned=native('PLAN',process.execPath,[command,'--workspace',workspace,'--ids','proof','--plan','--installed-packages',installed],installationRoot,workDeadline);
  expect(planned.error).toBeUndefined();expect(planned.status,planned.stderr+planned.stdout).toBe(0);

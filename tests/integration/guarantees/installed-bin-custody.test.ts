@@ -19,10 +19,11 @@ it('native production bundled command links bind only declared archived regular 
   writeFileSync(resolve(runtime,'package.json'),JSON.stringify({name:'@fixture/runtime',version:'1.0.0',main:'index.cjs'}));
   writeFileSync(resolve(runtime,'index.cjs'),ts.transpileModule("exports.exact='installed production dependency';",{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText);
   const runtimePack=native('npm',['pack','--ignore-scripts','--json','--pack-destination',installation],runtime),runtimeArchive=resolve(installation,JSON.parse(runtimePack.stdout)[0].filename);
-  writeFileSync(resolve(source,'package.json'),JSON.stringify({name:'@fixture/owner',version:'1.0.0',files:[],dependencies:{'@fixture/tool':'1.0.0','@fixture/runtime':`file:${runtimeArchive}`},bundledDependencies:['@fixture/tool']}));
+  writeFileSync(resolve(source,'package.json'),JSON.stringify({name:'@fixture/owner',version:'1.0.0',files:['command.cjs'],bin:{'exact-owner-tool':'./command.cjs'},dependencies:{'@fixture/tool':'1.0.0','@fixture/runtime':`file:${runtimeArchive}`},bundledDependencies:['@fixture/tool']}));
   writeFileSync(resolve(dependency,'package.json'),JSON.stringify({name:'@fixture/tool',version:'1.0.0',bin:{'exact-tool':'./command.cjs'}}));
   const code=ts.transpileModule("process.stdout.write('actual archived command');",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
   writeFileSync(resolve(dependency,'command.cjs'),code);chmodSync(resolve(dependency,'command.cjs'),0o755);
+  writeFileSync(resolve(source,'command.cjs'),code);chmodSync(resolve(source,'command.cjs'),0o755);
   const packed=native('npm',['pack','--ignore-scripts','--json','--pack-destination',installation],source),archive=resolve(installation,JSON.parse(packed.stdout)[0].filename),bytes=readFileSync(archive);
   native('npm',['install','--prefix',installation,'--install-strategy=nested','--omit=dev','--ignore-scripts','--package-lock=false','--no-save','--no-audit','--no-fund',archive]);
   const owner=resolve(installed,'@fixture/owner'),link=resolve(owner,'node_modules/.bin/exact-tool'),target=readlinkSync(link);
@@ -32,6 +33,17 @@ it('native production bundled command links bind only declared archived regular 
   expect(existsSync(nested)).toBe(true);
   expect(target).toBe('../@fixture/tool/command.cjs');
   const held=inspectInstalledOwner(source,installed);expect(installedCustodyDiagnostics([held])).toEqual([]);
+  const ownerLink=resolve(installed,'.bin/exact-owner-tool'),ownerTarget=readlinkSync(ownerLink);
+  for(const mode of ['missing','foreign','absolute','directory']){
+   rmSync(ownerLink);
+   if(mode==='foreign')symlinkSync(resolve(source,'command.cjs'),ownerLink);
+   if(mode==='absolute')symlinkSync(resolve(owner,'command.cjs'),ownerLink);
+   if(mode==='directory')mkdirSync(ownerLink);
+   expect(()=>inspectInstalledOwner(source,installed),`top-level owner command ${mode}`).toThrow();
+   expect(installedCustodyDiagnostics([held]).length,mode).toBeGreaterThan(0);
+   rmSync(ownerLink,{recursive:true,force:true});symlinkSync(ownerTarget,ownerLink);
+   expect(installedCustodyDiagnostics([held]),mode).toEqual([]);
+  }
   expect(held.files.some(file=>file.path.startsWith('node_modules/@fixture/runtime/'))).toBe(false);
   expect(native(process.execPath,['-e',"process.stdout.write(require('@fixture/runtime').exact)"],owner).stdout).toBe('installed production dependency');
   const runtimeManifest=resolve(nested,'package.json'),runtimeBytes=readFileSync(runtimeManifest),saved=resolve(root,'saved-runtime');
