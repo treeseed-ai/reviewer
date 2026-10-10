@@ -4,11 +4,18 @@ import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fixture, roots } from '../../fixtures/guarantee-prerequisites.ts';
 import { planLocalGuarantees, runLocalGuarantees } from '../../../src/verifiers/guarantees/command.ts';
+import { runOwnedCommand } from '../../../src/verifiers/guarantees/owned-command.ts';
 
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 it('native complete suites cannot leave a live owned descendant behind a passing report or continue into scenes', async () => {
   const root = fixture(), pidFile = resolve(root, '.treeseed/descendant.pid');
+  writeFileSync(resolve(root, 'timed.ts'), `import{spawn}from'node:child_process';
+const child=spawn(process.execPath,['-e','setInterval(()=>{},100)'],{stdio:'ignore'});child.unref();setInterval(()=>{},100);`);
+  const timed = runOwnedCommand(process.execPath, ['timed.ts'], { cwd: root, encoding: 'utf8', timeout: 500, maxBuffer: 1_024 });
+  expect(timed.error).toMatchObject({ code: 'ETIMEDOUT' });
+  expect(timed.error).toBeInstanceOf(AggregateError);
+  expect(timed.signal).toBe('SIGKILL');
   writeFileSync(resolve(root, 'descendant.ts'), `import {writeFileSync} from 'node:fs';
 writeFileSync(${JSON.stringify(pidFile)},String(process.pid));setInterval(()=>{},1000);`);
   appendFileSync(resolve(root, 'tests/integration.test.ts'), `

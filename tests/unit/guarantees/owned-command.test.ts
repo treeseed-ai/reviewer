@@ -27,6 +27,14 @@ it('kills only its original timed-out or overflowing native command and retains 
   writeFileSync(resolve(root, 'output.ts'), `process.stdout.write('x'.repeat(4096));setInterval(()=>{},100);`);
   const overflow = runOwnedCommand(process.execPath, ['output.ts'], options); expect(overflow.error).toMatchObject({ code: 'ENOBUFS' });
   expect(overflow.signal).toBe('SIGKILL'); expect(() => process.kill(overflow.pid, 0)).toThrow(/ESRCH/u);
+  writeFileSync(resolve(root, 'timeout-descendant.ts'), `import{spawn}from'node:child_process';import{existsSync}from'node:fs';
+const child=spawn(process.execPath,['-e',"require('node:fs').writeFileSync('descendant.pid',String(process.pid));setInterval(()=>{},100)"],{stdio:'ignore'});child.unref();
+while(!existsSync('descendant.pid'))Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10);setInterval(()=>{},100);`);
+  const descendant = runOwnedCommand(process.execPath, ['timeout-descendant.ts'], options);
+  expect(descendant.error).toMatchObject({ code: 'ETIMEDOUT' });
+  expect(descendant.error).toBeInstanceOf(AggregateError);
+  expect((descendant.error as AggregateError).errors.some(error => error.code === 'VERIFIER_SUBPROCESS_RESIDUE')).toBe(true);
+  expect(descendant.signal).toBe('SIGKILL');
 });
 
 it('rejects an unsupported process-group host before launching an unowned native command', () => {
