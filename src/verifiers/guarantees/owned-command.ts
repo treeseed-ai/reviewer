@@ -13,7 +13,12 @@ export function runOwnedCommand(command: string, args: readonly string[], option
   if (!result.pid) return result;
   const fail = (message: string, code: string) => {
     const error = Object.assign(new Error(message), { code });
-    result.error = result.error ? Object.assign(new AggregateError([result.error, error], message), { code }) : error;
+    // Cleanup cannot replace the original native failure. Retain every cleanup
+    // observation in the aggregate while preserving the first failure's code.
+    const original = result.error;
+    result.error = original ? Object.assign(new AggregateError([
+      ...(original instanceof AggregateError ? original.errors : [original]), error], message),
+      { code: (original as NodeJS.ErrnoException).code ?? code }) : error;
   };
   const present = () => {
     try { process.kill(-result.pid, 0); return true; }
