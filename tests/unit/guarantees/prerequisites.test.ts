@@ -19,6 +19,16 @@ it('accepts only complete observed full-suite evidence without skipped pending o
 		const failed={testResults:[{assertionResults:[{title:'native installed command',status:'failed',failureMessages:[`${criterion}: Original native command boundary`]}]}]};
 		expect(fullSuiteFailures(failed)).toEqual([{title:'native installed command',status:'failed',criterion}]);
 	}
+	const measurements=[{phase:'PACK',durationMs:125.5,remainingMs:24874.5},{phase:'INSTALL',durationMs:24875,remainingMs:-0.5}];
+	const failure=(value:unknown)=>({testResults:[{assertionResults:[{title:'installed failure',status:'failed',failureMessages:[
+		'Error: ACCEPTANCE_INSTALLED_INSTALL_ETIMEDOUT: private original cause',
+		`Error: ACCEPTANCE_INSTALLED_PHASE_MEASUREMENTS: ${JSON.stringify(value)}`]}]}]});
+	expect(fullSuiteFailures(failure(measurements))).toEqual([{title:'installed failure',status:'failed',criterion:'ACCEPTANCE_INSTALLED_INSTALL_ETIMEDOUT',measurements}]);
+	for(const invalid of [null,{},[],Array(17).fill(measurements[0]),[{...measurements[0],phase:'PRIVATE_TOKEN'}],
+		[{...measurements[0],durationMs:'125'}],[{...measurements[0],durationMs:-1}],[{...measurements[0],durationMs:Infinity}],
+		[{...measurements[0],durationMs:1200001}],[{...measurements[0],remainingMs:null}],[{...measurements[0],remainingMs:1200001}],
+		[{...measurements[0],remainingMs:-1200001}],[{...measurements[0],secret:'private token'}],[{phase:'PACK',durationMs:1}]])
+		expect(fullSuiteFailures(failure(invalid))).toEqual([{title:'installed failure',status:'failed',criterion:'ACCEPTANCE_INSTALLED_INSTALL_ETIMEDOUT'}]);
 	for (const patch of [{success:false},{numTotalTests:0},{numTotalTests:'2'},{numTotalTests:3},{numPassedTests:1},
 		{numFailedTests:1},{numPendingTests:1},{numTodoTests:1},{numFailedTestSuites:1},{numPendingTestSuites:1},
 		{testResults:[]},{testResults:[{assertionResults:[]}]},{testResults:null}])
