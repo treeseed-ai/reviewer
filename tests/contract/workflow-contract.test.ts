@@ -19,6 +19,10 @@ describe('reviewer verification workflow', () => {
     const dependencies = steps.find(step => step.name === 'Install the executing Reviewer suite dependencies')!;
     expect(dependencies.run).toBe('npm ci --prefix .treeseed/tools/reviewer --ignore-scripts --no-audit --no-fund');
     expect(steps.indexOf(dependencies)).toBeLessThan(steps.indexOf(execution));
+    const build = steps.find(step => step.name === 'Build the executing Reviewer archive assets')!;
+    expect(build?.run).toBe('npm run --prefix .treeseed/tools/reviewer build:dist');
+    expect(steps.indexOf(build)).toBeGreaterThan(steps.indexOf(dependencies));
+    expect(steps.indexOf(build)).toBeLessThan(steps.indexOf(execution));
     expect(steps.find(step => step.uses === 'erlef/setup-beam@v1')!.with).toEqual({ 'otp-version': '27.3.4.18', 'elixir-version': '1.17.3' });
     expect(execution.run).toContain('--import ./.treeseed/tools/reviewer/node_modules/tsx/dist/loader.mjs');
     expect(JSON.stringify(steps)).not.toContain('cp -a');
