@@ -2,12 +2,15 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import testConfiguration from '../../vitest.config.ts';
+import guaranteeConfiguration from '../../vitest.guarantees.config.ts';
 
 describe('reviewer verification workflow', () => {
   it('runs the entire owning suite serially under unchanged assertion deadlines', () => {
-    expect(testConfiguration.test?.include).toEqual(['tests/**/*.test.ts']);
-    expect(testConfiguration.test?.testTimeout).toBe(30_000);
-    expect(testConfiguration.test?.fileParallelism).toBe(false);
+    for (const configuration of [testConfiguration, guaranteeConfiguration]) {
+      expect(configuration.test?.include).toEqual(['tests/**/*.test.ts']);
+      expect(configuration.test?.testTimeout).toBe(30_000);
+      expect(configuration.test?.fileParallelism).toBe(false);
+    }
   });
   it('runs one immutable owner scene implementation and retains failure evidence', () => {
     const action = parse(readFileSync('.github/actions/run-scenes/action.yml', 'utf8'));
