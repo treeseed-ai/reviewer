@@ -35,8 +35,11 @@ function createProductionInstallation(deadline:number) {
   expect(packed.status,packed.stderr).toBe(0);return resolve(installationRoot,JSON.parse(packed.stdout)[0].filename);
  });
  const prefix=installationRoot;
- const installation=native('INSTALL','npm',['install','--prefix',prefix,'--omit=dev','--ignore-scripts','--package-lock=false','--no-save',...archives],installationRoot,deadline);
+ const installation=native('INSTALL','npm',['install','--prefix',prefix,'--omit=dev','--ignore-scripts','--package-lock=false','--no-save',
+  '--cache',resolve(installationRoot,'npm-cache'),...archives],installationRoot,deadline);
  expect(installation.status,installation.stderr).toBe(0);
+ const dependency=native('DEPENDENCY_EXPORTS',process.execPath,['--input-type=module','-e',"await import('@treeseed/sdk/operator-contracts')"],installationRoot,deadline);
+ expect(dependency.status,'ACCEPTANCE_INSTALLED_DEPENDENCY_EXPORTS: Actual production SDK exports must resolve without checkout source').toBe(0);
  installed=resolve(prefix,'node_modules');owner=resolve(installed,'@fixture/installed');runner=resolve(installed,'@treeseed/reviewer/dist/verifiers/guarantees/node-case.js');
  expect(existsSync(resolve(installed,'vitest'))).toBe(false);
  expect(existsSync(resolve(installed,'@treeseed/cli')),
