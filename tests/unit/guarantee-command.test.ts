@@ -141,6 +141,18 @@ describe('package-owned guarantee execution', () => {
 		for(const args of [['--installed-packages'],['--installed-packages',''],['--installed-packages','relative/node_modules'],
 			['--installed-packages','--plan'],['--installed-packages','/tmp/one','--installed-packages','/tmp/two']])
 			expect(localRequestDiagnostics(args).length).toBeGreaterThan(0);
+		const root=fixture(),source=resolve(import.meta.dirname,'../../src/verifiers/guarantees/command.ts'),link=resolve(root,'linked-command.ts');
+		symlinkSync(source,link);
+		for(const command of [source,link]){
+			const result=spawnSync(process.execPath,['--import','tsx',command,'--workspace',root,'--ids','proof','--plan'],
+				{cwd:resolve(import.meta.dirname,'../..'),encoding:'utf8',timeout:5_000});
+			expect(result.error).toBeUndefined();expect(result.signal).toBeNull();expect(result.status,result.stderr).toBe(0);
+			expect(result.stdout.trim(),command).not.toBe('');expect(JSON.parse(result.stdout)).toMatchObject({ok:true,entries:[{id:'proof'}]});
+		}
+		const imported=spawnSync(process.execPath,['--import','tsx','--input-type=module','-e',
+			`process.argv[1]=${JSON.stringify(resolve(root,'absent.ts'))};await import(${JSON.stringify(source)});process.stdout.write('module loaded');`],
+			{cwd:resolve(import.meta.dirname,'../..'),encoding:'utf8',timeout:5_000});
+		expect(imported.error).toBeUndefined();expect(imported.status,imported.stderr).toBe(0);expect(imported.stdout).toBe('module loaded');
 	});
 	it('rejects an empty selection and missing contracts', () => {
 		const root = fixture();

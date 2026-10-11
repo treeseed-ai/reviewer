@@ -158,9 +158,10 @@ it('executes actual production-installed Reviewer and owner archives and retains
  writeFileSync(resolve(foreign,'fixture-installed-command'),ts.transpileModule("#!/usr/bin/env node\nprocess.stdout.write('uninstalled source fallback');",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);
  chmodSync(resolve(foreign,'fixture-installed-command'),0o755);vi.stubEnv('PATH',foreign+delimiter+(process.env.PATH??''));
  writeFileSync(resolve(foreign,'fixture-bundled-command'),readFileSync(resolve(foreign,'fixture-installed-command')));chmodSync(resolve(foreign,'fixture-bundled-command'),0o755);
- const command=resolve(installed,'@treeseed/reviewer/dist/verifiers/guarantees/command.js');
- const planned=native('PLAN',process.execPath,[command,'--workspace',workspace,'--ids','proof','--plan','--installed-packages',installed],installationRoot,workDeadline);
+ const command=resolve(installed,'.bin/treeseed-reviewer-guarantees');
+ const planned=native('PLAN',command,['--workspace',workspace,'--ids','proof','--plan','--installed-packages',installed],installationRoot,workDeadline);
  expect(planned.error).toBeUndefined();expect(planned.status,planned.stderr+planned.stdout).toBe(0);
+ expect(planned.stdout.trim(),'Installed npm command must emit its actual plan').not.toBe('');
  expect(JSON.parse(planned.stdout)).toMatchObject({ok:true,entries:[{id:'proof',verifierRefs:['proof.scene']}]});
  expect(existsSync(resolve(source,'.treeseed/order'))).toBe(false);
  const asset=resolve(owner,'assets/proof.test.ts'),helper=resolve(owner,'assets/helper.ts'),helperBytes=readFileSync(helper);
