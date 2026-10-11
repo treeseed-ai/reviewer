@@ -563,6 +563,11 @@ verifiers:
     ownerPackage: '@treeseed/reviewer'
     testFile: tests/contract/workflow-contract.test.ts
     testName: runs the entire owning suite serially under unchanged assertion deadlines
+  reviewer.prerequisites.production-dependency-contract:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/contract/workflow-contract.test.ts
+    testName: verifies released dependencies and preserves the packed artifact
   reviewer.prerequisites.collection-file-unit:
     kind: vitestCase
     ownerPackage: '@treeseed/reviewer'

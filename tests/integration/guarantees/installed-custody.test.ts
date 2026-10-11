@@ -157,6 +157,19 @@ it('executes actual production-installed Reviewer and owner archives and retains
  expect(()=>native('EXECUTE',process.execPath,['-e','Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5000)'],tmpdir(),performance.now()+25))
   .toThrow('ACCEPTANCE_INSTALLED_EXECUTE_ETIMEDOUT');
  createProductionInstallation(workDeadline);
+ expect(existsSync(resolve(installed,'@treeseed/ui')),
+  'ACCEPTANCE_INSTALLED_BUILD_DEPENDENCY: Presentation build tooling must not enter production installation').toBe(false);
+ const ui=ts.transpileModule(`import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{resolve}from'node:path';
+ import{startReviewerServer}from'@treeseed/reviewer/server';
+ const app=await startReviewerServer({workspaceRoot:${JSON.stringify(workspace)},port:0});
+ try{const response=await fetch(app.url);assert.equal(response.status,200);const html=await response.text();
+ assert.equal(html,readFileSync(resolve(app.context.uiRoot,'index.html'),'utf8'));
+ const assets=[...html.matchAll(/(?:src|href)="([^\"]+\\.(?:js|css))"/g)];assert.ok(assets.length>0);
+ for(const asset of assets){const response=await fetch(new URL(asset[1],app.url));assert.equal(response.status,200);
+ assert.deepEqual(Buffer.from(await response.arrayBuffer()),readFileSync(resolve(app.context.uiRoot,asset[1].replace(/^\\/+/,''))));}}
+ finally{app.server.closeAllConnections();await app.close();}`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+ const served=native('HTTP',process.execPath,['--input-type=module','-e',ui],installationRoot,workDeadline);
+ expect(served.status,'ACCEPTANCE_INSTALLED_UI: Public installed server must serve exact archived UI without build dependencies').toBe(0);
  const foreign=resolve(installationRoot,'uninstalled-commands');mkdirSync(foreign);
  writeFileSync(resolve(foreign,'fixture-installed-command'),ts.transpileModule("#!/usr/bin/env node\nprocess.stdout.write('uninstalled source fallback');",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);
  chmodSync(resolve(foreign,'fixture-installed-command'),0o755);vi.stubEnv('PATH',foreign+delimiter+(process.env.PATH??''));

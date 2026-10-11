@@ -57,6 +57,9 @@ describe('reviewer verification workflow', () => {
   });
   it('verifies released dependencies and preserves the packed artifact', () => {
     const workflow = readFileSync('.github/workflows/verify.yml', 'utf8');
+    const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+    expect(manifest.dependencies['@treeseed/ui']).toBeUndefined();
+    expect(manifest.devDependencies['@treeseed/ui']).toBe('>=0.12.18-rc.11 <0.14.0');
 
     expect(workflow).toContain("import('@treeseed/sdk/operator-contracts')");
     expect(workflow).toContain("require('./node_modules/@treeseed/ui/package.json').version");
