@@ -204,7 +204,11 @@ export function participatingOwners(plan: LocalGuaranteePlan, workspace: string)
 			}
 		}
 	};
-	for (const root of [...owners]) visit(root);
+	for (const entry of plan.entries.filter(entry => entry.scope === 'local-integrated-runtime')) {
+		const roots = entry.ownerPackage ? [unique(packages,entry.ownerPackage)]
+			: entry.verifierRefs.map(ref => realpathSync(plan.verifiers[ref]!.root));
+		for (const root of roots) visit(root);
+	}
 	return [...owners];
 }
 
