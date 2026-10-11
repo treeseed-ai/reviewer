@@ -311,12 +311,20 @@ function compositionFixture(failing = false) {
 it('runs declared transitive integrated owners once and blocks every scene on an indirect failure', () => {
 	for (const failing of [false,true]) {
 		const {owner,dependency,transitive,plan} = compositionFixture(failing);
+		const native = fixture();
+		writeFileSync(resolve(native,'package.json'),JSON.stringify({type:'module',name:'native-boundary',scripts:{test:'vitest run --config vitest.config.ts'}}));
+		writeFileSync(resolve(native,'treeseed.package.yaml'),JSON.stringify({development:{project:{id:'native-boundary'},targets:[
+			{id:'package-watch',dependencies:[{id:'absent-companion',target:'browser'}]}]}}));
+		plan.entries[0]!.ownerPackage = 'owner';
+		plan.verifiers.native = {...plan.verifiers['proof.scene']!,root:native}; plan.entries[0]!.verifierRefs.push('native');
 		const report = runLocalGuarantees(owner,plan,`composition-${failing}`);
 		expect(report.ok).toBe(!failing);
 		for (const root of [dependency,transitive])
 			expect(readFileSync(resolve(root,'.treeseed/order'),'utf8').trim().split('\n').sort()).toEqual(['integration','unit']);
+		expect(readFileSync(resolve(native,'.treeseed/order'),'utf8').trim().split('\n').sort()).toEqual(
+			failing ? ['integration','unit'] : ['integration','scene','unit']);
 		expect(readFileSync(resolve(owner,'.treeseed/order'),'utf8').includes('scene')).toBe(!failing);
-		expect(new Set(report.results[0]!.evidence.filter(path=>path.includes('prerequisite-'))).size).toBe(3);
+		expect(new Set(report.results[0]!.evidence.filter(path=>path.includes('prerequisite-'))).size).toBe(4);
 	}
 });
 
