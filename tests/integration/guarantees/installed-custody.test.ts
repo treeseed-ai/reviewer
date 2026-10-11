@@ -73,6 +73,8 @@ function createProductionInstallation(deadline:number) {
  const dependency=native('DEPENDENCY_EXPORTS',process.execPath,['--input-type=module','-e',"await import('@treeseed/sdk/operator-contracts')"],installationRoot,deadline);
  expect(dependency.status,'ACCEPTANCE_INSTALLED_DEPENDENCY_EXPORTS: Actual production SDK exports must resolve without checkout source').toBe(0);
  installed=resolve(prefix,'node_modules');owner=resolve(installed,'@fixture/installed');runner=resolve(installed,'@treeseed/reviewer/dist/verifiers/guarantees/node-case.js');
+ expect(JSON.parse(readFileSync(resolve(owner,'node_modules/native-transitive/value.json'),'utf8'))).toEqual({version:1});
+ expect(JSON.parse(readFileSync(resolve(installed,'native-transitive/value.json'),'utf8'))).toEqual({version:2});
  expect(existsSync(resolve(installed,'vitest'))).toBe(false);
  expect(existsSync(resolve(installed,'@treeseed/cli')),
   'Reviewer must execute its own runner without installing an unused companion CLI').toBe(false);

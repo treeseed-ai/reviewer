@@ -2,7 +2,8 @@ import { expect, it } from 'vitest';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { delimiter, resolve } from 'node:path';
+import ts from 'typescript';
 import { assetPaths, inspectInstalledOwner, installedCustodyDiagnostics, installedDirectory } from '../../../src/verifiers/guarantees/installed-custody.ts';
 import { productionDependencyArchives, productionInstallFlags } from '../../fixtures/guarantee-prerequisites.ts';
 
@@ -86,6 +87,29 @@ it('matches actual npm archive and production installation bytes and rejects cha
   expect(hoistedOwner.files.map(file=>file.path).sort()).toEqual(['node_modules/native-bundled/package.json','package.json']);
   expect(JSON.parse(readFileSync(resolve(hoistedOwner.root,'node_modules/native-transitive/value.json'),'utf8'))).toEqual({version:1});
   expect(JSON.parse(readFileSync(resolve(hoisted,'node_modules/native-transitive/value.json'),'utf8'))).toEqual({version:2});
+  expect(installedCustodyDiagnostics([hoistedOwner])).toEqual([]);
+  const nativeBin=resolve(root,'denied-native-bin');mkdirSync(nativeBin);const previousPath=process.env.PATH;
+  try {
+   process.env.PATH=nativeBin+delimiter+(previousPath??'');
+   for(const code of ["process.stdout.write('not json');","process.stdout.write('[]');","process.stdout.write('[{}]');",
+    'process.exit(23);',"process.kill(process.pid,'SIGTERM');"]){
+    writeFileSync(resolve(nativeBin,'npm'),ts.transpileModule(`#!${process.execPath}\n${code}`,
+     {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);chmodSync(resolve(nativeBin,'npm'),0o755);
+    expect(()=>assetPaths(hoistedOwner.root,hoistedOwner.files,hoistedOwner.bins)).toThrow('undeclared dependency');
+   }
+  } finally {if(previousPath===undefined)delete process.env.PATH;else process.env.PATH=previousPath;}
+  expect(installedCustodyDiagnostics([hoistedOwner])).toEqual([]);
+  const transitiveManifest=resolve(hoistedOwner.root,'node_modules/native-transitive/package.json');
+  const externalManifest=resolve(hoistedOwner.root,'node_modules/native-external/package.json');
+  for(const [path,changed] of [[transitiveManifest,{name:'native-transitive',version:'9.0.0'}],
+   [externalManifest,{name:'native-external',version:'1.0.0',devDependencies:{'native-transitive':'1.0.0'}}],
+   [externalManifest,{name:'native-external',version:'1.0.0',dependencies:{'native-transitive':'missing-version'}}]] as const){
+   const before=readFileSync(path);writeFileSync(path,JSON.stringify(changed));expect(installedCustodyDiagnostics([hoistedOwner]).length).toBeGreaterThan(0);
+   writeFileSync(path,before);expect(installedCustodyDiagnostics([hoistedOwner])).toEqual([]);
+  }
+  const injected=resolve(hoistedOwner.root,'node_modules/unreferenced');mkdirSync(injected);
+  writeFileSync(resolve(injected,'package.json'),JSON.stringify({name:'unreferenced',version:'1.0.0'}));
+  expect(installedCustodyDiagnostics([hoistedOwner]).length).toBeGreaterThan(0);rmSync(injected,{recursive:true});
   expect(installedCustodyDiagnostics([hoistedOwner])).toEqual([]);
   renameSync(commands,savedCommands);symlinkSync(savedCommands,commands,'dir');
   expect(()=>assetPaths(payload,commandFiles,bins)).toThrow('command directory');rmSync(commands,{recursive:true});renameSync(savedCommands,commands);

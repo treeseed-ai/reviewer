@@ -73,7 +73,41 @@ function declaredBins(root:string,files:readonly {path:string}[],installed:strin
 }
 export function assetPaths(root:string,files:InstalledOwner['files'],bins:InstalledOwner['bins']):string[] {
  const archived=new Set(files.map(file=>file.path)),bundled=files.some(file=>file.path.startsWith('node_modules/'));
- const dependencies=(JSON.parse(regular(root,'package.json').bytes.toString('utf8')) as {dependencies?:Record<string,unknown>}).dependencies??{};
+ const source=JSON.parse(regular(root,'package.json').bytes.toString('utf8')) as {name?:string;version?:string;dependencies?:Record<string,unknown>};
+ const dependencies=source.dependencies??{};
+ const productionDependency=(path:string,dependency:string):boolean=>{
+  try {
+   if(!source.name||!/^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/u.test(source.name))return false;
+   const prefix=resolve(root,...source.name.split('/').map(()=>'..'),'..');
+   if(resolve(prefix,'node_modules',source.name)!==root)return false;
+   const result=spawnSync('npm',['explain',resolve(root,path),'--prefix',prefix,'--json'],{encoding:'utf8',timeout:120_000,maxBuffer:32*1024*1024});
+   if(result.status!==0||result.error||result.signal)return false;
+   const explanations=JSON.parse(result.stdout) as unknown[];
+   if(!Array.isArray(explanations)||explanations.length!==1)return false;
+   const reachesOwner=(value:unknown,seen:ReadonlySet<string>):boolean=>{
+    if(!value||typeof value!=='object'||Array.isArray(value))return false;
+    const node=value as Record<string,unknown>;
+    if(typeof node.location!=='string'||!member(node.location)||node.isWorkspace!==false||node.errors)return false;
+    const manifest=JSON.parse(regular(prefix,`${node.location}/package.json`).bytes.toString('utf8')) as {name?:string;version?:string};
+    if(manifest.name!==node.name||manifest.version!==node.version||seen.has(node.location))return false;
+    if(resolve(prefix,node.location)===root)return node.name===source.name&&node.version===source.version;
+    const next=new Set([...seen,node.location]);
+    return Array.isArray(node.dependents)&&node.dependents.some(value=>{
+     if(!value||typeof value!=='object'||Array.isArray(value))return false;
+     const edge=value as Record<string,unknown>;
+     const from=edge.from as Record<string,unknown>|undefined;
+     if(!from||typeof from.location!=='string'||!member(from.location))return false;
+     const parent=JSON.parse(regular(prefix,`${from.location}/package.json`).bytes.toString('utf8')) as Record<string,Record<string,unknown>|undefined>;
+     const declarations=parent[edge.type==='optional'?'optionalDependencies':String(edge.type).startsWith('peer')?'peerDependencies':'dependencies'];
+     return ['prod','optional','peer','peerOptional'].includes(String(edge.type))&&edge.name===node.name
+      &&typeof edge.spec==='string'&&Boolean(edge.spec)&&declarations?.[String(edge.name)]===edge.spec
+      &&!edge.error&&!edge.overridden&&reachesOwner(from,next);
+    });
+   };
+   const first=explanations[0] as Record<string,unknown>|null;
+   return Boolean(first&&first.name===dependency&&first.location===relative(prefix,resolve(root,path))&&reachesOwner(first,new Set()));
+  } catch {return false;}
+ };
  const links=new Map(bins.map(bin=>[bin.path,bin.target]));
  for(const bin of bins) {
   const path=resolve(root,bin.path),target=resolve(dirname(path),bin.target);
@@ -96,7 +130,7 @@ export function assetPaths(root:string,files:InstalledOwner['files'],bins:Instal
   if(entry.isDirectory()) {
    const dependency=/^node_modules\/((?:@[^/]+\/)?[^/.@][^/]*)$/u.exec(path)?.[1];
    if(dependency&&!archived.has(`${path}/package.json`)) {
-    if(!Object.hasOwn(dependencies,dependency)||typeof dependencies[dependency]!=='string'||!dependencies[dependency])
+    if(Object.hasOwn(dependencies,dependency)?typeof dependencies[dependency]!=='string'||!dependencies[dependency]:!productionDependency(path,dependency))
      throw new Error('Installed owner contains an undeclared dependency directory.');
     const manifest=JSON.parse(regular(root,`${path}/package.json`).bytes.toString('utf8')) as {name?:unknown};
     if(manifest.name!==dependency)throw new Error('Installed production dependency identity differs from its declared location.');
