@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -222,8 +222,21 @@ it('resolves arbitrary workspace owners and only the declared transitive target 
 	const unrelated = make('unrelated');
 	expect(participatingOwners(plan,workspace)).toEqual([root,dependency]);
 	expect(participatingOwners(plan,workspace)).not.toContain(unrelated);
+	const native = make('native-boundary',[{id:'package-watch',dependencies:[{id:'absent-companion',target:'browser'}]}]);
+	plan.verifiers.native = {...plan.verifiers.proof!,root:native};
+	plan.entries[0]!.verifierRefs.push('native');
+	expect(participatingOwners(plan,workspace)).toEqual([root,native,dependency]);
+	plan.entries[0]!.ownerPackage = '';
+	expect(()=>participatingOwners(plan,workspace)).toThrow();
+	plan.entries[0]!.ownerPackage = '@fixture/owner';
+	const document = JSON.parse(readFileSync(resolve(root,'treeseed.package.yaml'),'utf8'));
+	document.development.targets[0].dependencies.push({id:'native-boundary',target:'package-watch'});
+	writeFileSync(resolve(root,'treeseed.package.yaml'),JSON.stringify(document));
+	expect(()=>participatingOwners(plan,workspace)).toThrow();
+	document.development.targets[0].dependencies.pop();
+	writeFileSync(resolve(root,'treeseed.package.yaml'),JSON.stringify(document));
 	plan.entries[0]!.scope = 'local-component-tests';
-	expect(participatingOwners(plan,workspace)).toEqual([root]);
+	expect(participatingOwners(plan,workspace)).toEqual([root,native]);
 });
 
 it('rejects missing duplicate malformed and unbound owner or target declarations', () => {
