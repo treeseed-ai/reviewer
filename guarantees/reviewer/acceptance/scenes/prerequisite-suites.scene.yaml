@@ -332,6 +332,9 @@ workflow:
   - id: serial-complete-suite
     action: {verifier: reviewer.prerequisites.serial-complete-suite}
     expect: {status: passed}
+  - id: production-dependency-contract
+    action: {verifier: reviewer.prerequisites.production-dependency-contract}
+    expect: {status: passed}
   - id: collection-file-unit
     action: {verifier: reviewer.prerequisites.collection-file-unit}
     expect: {status: passed}
