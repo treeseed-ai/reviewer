@@ -3,6 +3,28 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { expect } from 'vitest';
+import ts from 'typescript';
+
+/** Offline native npm collision: version one must remain under its owning package. */
+export function productionDependencyArchives(root:string, pack:(args:string[])=>{status:number|null;stdout:string;stderr:string}) {
+	const sources:string[]=[];
+	for(const name of ['native-transitive','native-external']) for(const version of ['1.0.0','2.0.0']) {
+		const source=resolve(root,`${name}-${version}`);mkdirSync(source,{recursive:true});sources.push(source);
+		const external=name==='native-external';
+		writeFileSync(resolve(source,'package.json'),JSON.stringify({name,version,files:['value.json','index.mjs'],
+			exports:external?'./index.mjs':'./value.json',...(external?{dependencies:{'native-transitive':`file:${resolve(root,`native-transitive-${version}.tgz`)}`}}:{})}));
+		writeFileSync(resolve(source,'value.json'),JSON.stringify({version:Number(version[0])}));
+		if(external)writeFileSync(resolve(source,'index.mjs'),ts.transpileModule(
+			"import data from 'native-transitive' with {type:'json'};export const value:number=data.version;",
+			{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);
+	}
+	const packed=pack(['pack',...sources,'--ignore-scripts','--json','--pack-destination',root]);expect(packed.status,packed.stderr).toBe(0);
+	const records=JSON.parse(packed.stdout) as {name:string;version:string;filename:string}[];expect(records).toHaveLength(4);
+	const archive=(name:string,version:string)=>{const matches=records.filter(record=>record.name===name&&record.version===version);
+		expect(matches).toHaveLength(1);return resolve(root,matches[0]!.filename);};
+	return {dependency:`file:${archive('native-external','1.0.0')}`,
+		rootDependencies:{'native-external':`file:${archive('native-external','2.0.0')}`,'native-transitive':`file:${archive('native-transitive','2.0.0')}`}};
+}
 
 // Same native fixture; callers retain ownership of every allocated root and cleanup.
 export const roots: string[] = [];
