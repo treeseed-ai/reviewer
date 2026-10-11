@@ -3,7 +3,7 @@ import { appendFileSync, chmodSync, unlinkSync, existsSync, lstatSync, mkdirSync
 import { tmpdir } from 'node:os';
 import { delimiter, resolve } from 'node:path';
 import ts from 'typescript';
-import { fixture, roots, productionInstallFlags } from '../../fixtures/guarantee-prerequisites.ts';
+import { fixture, roots, productionDependencyArchives, productionInstallFlags } from '../../fixtures/guarantee-prerequisites.ts';
 import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -30,10 +30,11 @@ function native(phase:string,command:string,args:string[],cwd:string,deadline:nu
 function createProductionInstallation(deadline:number) {
  installationRoot=mkdtempSync(resolve(tmpdir(),'reviewer-production-archive-'));
  const repository=resolve(import.meta.dirname,'../../..');workspace=resolve(installationRoot,'workspace');source=resolve(workspace,'packages/native');
+ const dependencies=productionDependencyArchives(installationRoot,args=>native('DEPENDENCY_PACK','npm',args,repository,deadline));
  mkdirSync(resolve(workspace,'packages'),{recursive:true});renameSync(fixture(),source);symlinkSync(repository,resolve(workspace,'packages/reviewer'),'dir');
  mkdirSync(resolve(source,'assets'));
- writeFileSync(resolve(source,'package.json'),JSON.stringify({name:'@fixture/installed',version:'1.0.0',type:'module',files:['assets','guarantees','command.mjs','treeseed.package.yaml'],bin:{'fixture-installed-command':'./command.mjs'},dependencies:{'@fixture/tool':'1.0.0'},bundledDependencies:['@fixture/tool'],scripts:{test:'vitest run --config ./vitest.config.ts'}}));
- writeFileSync(resolve(source,'command.mjs'),ts.transpileModule("#!/usr/bin/env node\nprocess.stdout.write('actual archived command');",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);chmodSync(resolve(source,'command.mjs'),0o755);
+ writeFileSync(resolve(source,'package.json'),JSON.stringify({name:'@fixture/installed',version:'1.0.0',type:'module',files:['assets','guarantees','command.mjs','treeseed.package.yaml'],bin:{'fixture-installed-command':'./command.mjs'},dependencies:{'@fixture/tool':'1.0.0','native-external':dependencies.dependency},bundledDependencies:['@fixture/tool'],scripts:{test:'vitest run --config ./vitest.config.ts'}}));
+ writeFileSync(resolve(source,'command.mjs'),ts.transpileModule("#!/usr/bin/env node\nimport {value} from 'native-external';if(value!==1)throw new Error('wrong native transitive authority');process.stdout.write('actual archived command');",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);chmodSync(resolve(source,'command.mjs'),0o755);
  const bundled=resolve(source,'node_modules/@fixture/tool');mkdirSync(bundled,{recursive:true});
  writeFileSync(resolve(bundled,'package.json'),JSON.stringify({name:'@fixture/tool',version:'1.0.0',bin:{'fixture-bundled-command':'./command.mjs'}}));
  writeFileSync(resolve(bundled,'command.mjs'),readFileSync(resolve(source,'command.mjs')));chmodSync(resolve(bundled,'command.mjs'),0o755);
@@ -60,7 +61,7 @@ function createProductionInstallation(deadline:number) {
  });
  const prefix=installationRoot;
  writeFileSync(resolve(prefix,'package.json'),JSON.stringify({private:true,type:'module',
-  dependencies:Object.fromEntries(inputs.map((cwd,index)=>[JSON.parse(readFileSync(resolve(cwd,'package.json'),'utf8')).name,`file:${archives[index]}`])),
+  dependencies:{...Object.fromEntries(inputs.map((cwd,index)=>[JSON.parse(readFileSync(resolve(cwd,'package.json'),'utf8')).name,`file:${archives[index]}`])),...dependencies.rootDependencies},
   overrides:{'@treeseed/sdk':'$@treeseed/sdk'}}));
  const installation=native('INSTALL','npm',['install','--prefix',prefix,...productionInstallFlags,...archives],installationRoot,deadline);
  expect(installation.status,installation.stderr).toBe(0);

@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { assetPaths, inspectInstalledOwner, installedCustodyDiagnostics, installedDirectory } from '../../../src/verifiers/guarantees/installed-custody.ts';
-import { productionInstallFlags } from '../../fixtures/guarantee-prerequisites.ts';
+import { productionDependencyArchives, productionInstallFlags } from '../../fixtures/guarantee-prerequisites.ts';
 
 it('matches actual npm archive and production installation bytes and rejects changed missing redirected and unarchived assets',()=>{
  const root=mkdtempSync(resolve(tmpdir(),'installed-owner-custody-')),source=resolve(root,'source'),installation=resolve(root,'installation'),installed=resolve(installation,'node_modules');
@@ -72,6 +72,21 @@ it('matches actual npm archive and production installation bytes and rejects cha
   const bins=[{path:'../.bin/owner-command',target:'../payload/command.ts'}];
   symlinkSync('../payload/command.ts',resolve(commands,'owner-command'));
   expect(assetPaths(payload,commandFiles,bins)).toEqual(['command.ts','node_modules/bundled/package.json','package.json']);
+  const hoisted=resolve(root,'hoisted-install');mkdirSync(hoisted);
+  const dependencies=productionDependencyArchives(hoisted,args=>spawnSync('npm',args,{encoding:'utf8'}));
+  const owning=resolve(root,'hoisted-source'),bundled=resolve(owning,'node_modules/native-bundled');mkdirSync(bundled,{recursive:true});
+  writeFileSync(resolve(owning,'package.json'),JSON.stringify({name:'native-owner',version:'1.0.0',
+   dependencies:{'native-bundled':'1.0.0','native-external':dependencies.dependency},bundleDependencies:['native-bundled']}));
+  writeFileSync(resolve(bundled,'package.json'),JSON.stringify({name:'native-bundled',version:'1.0.0'}));
+  const packed=spawnSync('npm',['pack','--ignore-scripts','--json','--pack-destination',hoisted],{cwd:owning,encoding:'utf8'});
+  expect(packed.status,packed.stderr).toBe(0);const ownerArchive=resolve(hoisted,JSON.parse(packed.stdout)[0].filename);
+  writeFileSync(resolve(hoisted,'package.json'),JSON.stringify({private:true,dependencies:{...dependencies.rootDependencies,'native-owner':`file:${ownerArchive}`}}));
+  const installedHoisted=spawnSync('npm',['install','--prefix',hoisted,...productionInstallFlags],{encoding:'utf8'});expect(installedHoisted.status,installedHoisted.stderr).toBe(0);
+  const hoistedOwner=inspectInstalledOwner(owning,resolve(hoisted,'node_modules'));
+  expect(hoistedOwner.files.map(file=>file.path).sort()).toEqual(['node_modules/native-bundled/package.json','package.json']);
+  expect(JSON.parse(readFileSync(resolve(hoistedOwner.root,'node_modules/native-transitive/value.json'),'utf8'))).toEqual({version:1});
+  expect(JSON.parse(readFileSync(resolve(hoisted,'node_modules/native-transitive/value.json'),'utf8'))).toEqual({version:2});
+  expect(installedCustodyDiagnostics([hoistedOwner])).toEqual([]);
   renameSync(commands,savedCommands);symlinkSync(savedCommands,commands,'dir');
   expect(()=>assetPaths(payload,commandFiles,bins)).toThrow('command directory');rmSync(commands,{recursive:true});renameSync(savedCommands,commands);
   rmSync(resolve(commands,'owner-command'));symlinkSync(resolve(source,'assets/proof.ts'),resolve(commands,'owner-command'));
