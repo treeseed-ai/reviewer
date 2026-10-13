@@ -26,7 +26,7 @@ export function verifierTimeout(value: unknown): number {
 		throw new Error('Verifier timeoutMs must be an integer from 1 to 86400000 milliseconds.');
 	return value;
 }
-export function localRequestDiagnostics(args: string[]): GuaranteeDiagnostic[] {
+export function localRequestDiagnostics(args: string[], _scope?: string): GuaranteeDiagnostic[] {
 	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment', '--acceptance-spec', '--acceptance-section', '--acceptance-exact-section', '--installed-packages']);
 	const errors = args.filter(arg => arg.startsWith('--') && !supported.has(arg))
 		.map(arg => diagnostic(`Unsupported local component option ${arg}; no evidence was executed.`));

@@ -34,6 +34,17 @@ function fixture() {
 }
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 describe('package-owned guarantee execution', () => {
+	it('requires installed archives for integrated execution while retaining source inspection and component scope', () => {
+		const args = ['--workspace', '/tmp/native-owner', '--ids', 'proof', '--environment', 'local'];
+		expect(localRequestDiagnostics(args, 'local-integrated-runtime').map(value => value.message))
+			.toEqual(['Integrated runtime execution requires one explicit absolute installed package directory.']);
+		expect(localRequestDiagnostics([...args, '--plan'], 'local-integrated-runtime')).toEqual([]);
+		expect(localRequestDiagnostics([...args, '--installed-packages', '/tmp/native-install/node_modules'], 'local-integrated-runtime')).toEqual([]);
+		expect(localRequestDiagnostics(args, 'local-component-tests')).toEqual([]);
+		for (const location of ['', 'relative/node_modules', '--plan'])
+			expect(localRequestDiagnostics([...args, '--installed-packages', location], 'local-integrated-runtime').length).toBeGreaterThan(0);
+		expect(args).toEqual(['--workspace', '/tmp/native-owner', '--ids', 'proof', '--environment', 'local']);
+	});
 	it('retains declared scene order when criterion and contract bindings reference later steps first without mutating source authority', () => {
 		const root = fixture();
 		const manifest = { id: 'proof', api: { verifierRefs: ['proof.check', 'proof.extra'] },

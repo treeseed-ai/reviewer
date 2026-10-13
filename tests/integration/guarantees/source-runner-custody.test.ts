@@ -1,11 +1,37 @@
 import { afterEach, expect, it } from 'vitest';
-import { appendFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fixture, roots } from '../../fixtures/guarantee-prerequisites.ts';
 import { sourceRunnerFixture } from '../../fixtures/source-runner.ts';
 
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+
+it('native integrated CLI denies checkout execution before any owning suite or scene while retaining source plans and failed receipts', () => {
+	const owner = fixture(), runner = sourceRunnerFixture(), scene = resolve(owner, 'guarantees/proof.scene.yaml');
+	writeFileSync(resolve(owner, 'treeseed.package.yaml'), JSON.stringify({ development: { project: { id: 'installed-custody' }, targets: [{ id: 'runtime', dependencies: [] }] } }));
+	writeFileSync(resolve(owner, 'guarantees/proof.guarantee.yaml'), 'id: proof\nscene: { required: true, manifest: guarantees/proof.scene.yaml }\n');
+	writeFileSync(scene, JSON.stringify({ scope: 'local-integrated-runtime', workflow: [{ id: 'native', action: { verifier: 'proof.scene' }, expect: { status: 'passed' } }] }));
+	const invoke = (id: string, plan = false) => {
+		const native = spawnSync(process.execPath, ['--import', resolve(import.meta.dirname, '../../../node_modules/tsx/dist/loader.mjs'),
+			resolve(runner, 'src/verifiers/guarantees/command.ts'), '--workspace', owner, '--ids', 'proof', '--run-id', id, ...(plan ? ['--plan'] : [])],
+			{ encoding: 'utf8', timeout: 15_000 });
+		expect(native.error).toBeUndefined(); expect(native.signal).toBeNull(); expect(native.stderr).toBe('');
+		return { native, report: JSON.parse(native.stdout) };
+	};
+	expect(invoke('integrated-source-plan', true).report.ok).toBe(true);
+	const retained = new Map<string, Buffer>();
+	for (const id of ['integrated-source-denied', 'integrated-source-denied-retry']) {
+		const denied = invoke(id); expect(denied.native.status).toBe(1); expect(denied.report.ok).toBe(false);
+		expect(denied.report.results[0]).toMatchObject({ status: 'blocked', evidence: [], steps: [{ status: 'blocked', evidence: [] }] });
+		expect(denied.report.diagnostics.map((value: { message: string }) => value.message))
+			.toContain('Integrated runtime execution requires one explicit absolute installed package directory.');
+		const path = resolve(owner, '.treeseed/guarantees/runs', id, 'report.json'); retained.set(path, readFileSync(path));
+		for (const [path, bytes] of retained) expect(readFileSync(path)).toEqual(bytes);
+		expect(existsSync(resolve(owner, '.treeseed/order'))).toBe(false);
+		expect(existsSync(resolve(runner, '.treeseed/order'))).toBe(false);
+	}
+}, 30_000);
 
 it('native source CLI runs its executing Reviewer complete suite beside the selected owner before every scene and retains failed runner coverage before fresh retry', () => {
 	const owner = fixture(), runner = sourceRunnerFixture(), loader = resolve(import.meta.dirname, '../../../node_modules/tsx/dist/loader.mjs');
