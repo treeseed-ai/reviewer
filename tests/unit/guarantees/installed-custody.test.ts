@@ -1,9 +1,10 @@
 import { expect, it } from 'vitest';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { delimiter, resolve } from 'node:path';
 import ts from 'typescript';
+import { createHash } from 'node:crypto';
 import { assetPaths, inspectInstalledOwner, installedCustodyDiagnostics, installedDirectory } from '../../../src/verifiers/guarantees/installed-custody.ts';
 import { productionDependencyArchives, productionInstallFlags } from '../../fixtures/guarantee-prerequisites.ts';
 
@@ -15,6 +16,7 @@ it('matches native archives across checkout permission masks while denying sourc
   const readable=resolve(source,'assets/proof.ts'),executable=resolve(source,'assets/command.sh');
   writeFileSync(readable,'export const value="exact archived bytes";\n');chmodSync(readable,0o644);
   writeFileSync(executable,'#!/bin/sh\nexit 0\n');chmodSync(executable,0o755);
+  for(let index=0;index<32;index++)writeFileSync(resolve(source,`assets/payload-${index}.txt`),`exact native payload ${index}\n`);
   for(const args of [['init','-q'],['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Exact native package source']])
    expect(spawnSync('git',args,{cwd:source}).status).toBe(0);
   const packed=spawnSync('npm',['pack','--ignore-scripts','--json','--pack-destination',installation],{cwd:source,encoding:'utf8'});expect(packed.status).toBe(0);
@@ -32,7 +34,10 @@ it('matches native archives across checkout permission masks while denying sourc
   try {process.env.PATH=commands+delimiter+(savedPath??'');held=inspectInstalledOwner(source,resolve(installation,'node_modules'));}
   finally {if(savedPath===undefined)delete process.env.PATH;else process.env.PATH=savedPath;}
   const invocations=readFileSync(calls,'utf8').trim().split('\n').map(line=>JSON.parse(line) as string[]);
-  expect(held.files.map(file=>file.path).sort()).toEqual(['assets/command.sh','assets/proof.ts','package.json']);
+  expect(held.files.map(file=>file.path).sort()).toEqual(['assets/command.sh','assets/proof.ts','package.json',...Array.from({length:32},(_,index)=>`assets/payload-${index}.txt`)].sort());
+  for(let index=0;index<32;index++)expect(held.files.find(file=>file.path===`assets/payload-${index}.txt`)?.sha256)
+   .toBe(createHash('sha256').update(`exact native payload ${index}\n`).digest('hex'));
+  for(const args of invocations.filter(args=>args.includes('--directory')))expect(existsSync(args[args.indexOf('--directory')+1]!)).toBe(false);
   expect(invocations.filter(args=>args.includes('--extract')).length,'Native archive validation must extract each of the two complete archives once, preserving every file comparison').toBe(2);
   const installed=resolve(installation,'node_modules');
   expect(held.files.find(file=>file.path==='assets/command.sh')?.mode).toBe(0o111);
@@ -47,6 +52,17 @@ it('matches native archives across checkout permission masks while denying sourc
    expect(()=>inspectInstalledOwner(source,installed),failure).toThrow();
    writeFileSync(readable,original);chmodSync(readable,0o600);chmodSync(executable,0o700);
    writeFileSync(asset,original);chmodSync(asset,0o644);writeFileSync(archive,archiveBytes);
+  }
+  expect(installedCustodyDiagnostics([held])).toEqual([]);
+  const payload=resolve(root,'archive-payload');mkdirSync(payload);
+  expect(spawnSync('/usr/bin/tar',['--extract','--gzip','--file',archive,'--directory',payload]).status).toBe(0);
+  mkdirSync(resolve(payload,'package/unsafe-empty'));
+  for(const replacement of ['../outside','/outside','package/../outside','package//outside']) {
+   const malicious=spawnSync('/usr/bin/tar',['--create','--gzip','--absolute-names','--file',archive,'--transform',`s|package/unsafe-empty|${replacement}|`,'--directory',payload,'package']);
+   expect(malicious.status).toBe(0);
+   expect(()=>inspectInstalledOwner(source,installed),replacement).toThrow();
+   expect(existsSync(resolve(root,'outside'))).toBe(false);
+   writeFileSync(archive,archiveBytes);
   }
   expect(installedCustodyDiagnostics([held])).toEqual([]);
  }finally{rmSync(root,{recursive:true,force:true});}
