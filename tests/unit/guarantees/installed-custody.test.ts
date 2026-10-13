@@ -54,6 +54,17 @@ it('matches native archives across checkout permission masks while denying sourc
    writeFileSync(asset,original);chmodSync(asset,0o644);writeFileSync(archive,archiveBytes);
   }
   expect(installedCustodyDiagnostics([held])).toEqual([]);
+  const wrapper=resolve(commands,'tar'),nativeWrapper=readFileSync(wrapper,'utf8');
+  try {
+   process.env.PATH=commands+delimiter+(savedPath??'');
+   for(const termination of ["process.exit(23);","process.kill(process.pid,'SIGTERM');"]) {
+    writeFileSync(wrapper,nativeWrapper.replace('if (result.signal)',`if(process.argv.includes('--extract')){${termination}}\nif (result.signal)`));
+    expect(()=>inspectInstalledOwner(source,installed),termination).toThrow('extraction is incomplete');
+    const callsAfterFailure=readFileSync(calls,'utf8').trim().split('\n').map(line=>JSON.parse(line) as string[]);
+    for(const args of callsAfterFailure.filter(args=>args.includes('--directory')))expect(existsSync(args[args.indexOf('--directory')+1]!)).toBe(false);
+   }
+  }finally {writeFileSync(wrapper,nativeWrapper);if(savedPath===undefined)delete process.env.PATH;else process.env.PATH=savedPath;}
+  expect(installedCustodyDiagnostics([inspectInstalledOwner(source,installed)])).toEqual([]);
   const payload=resolve(root,'archive-payload');mkdirSync(payload);
   expect(spawnSync('/usr/bin/tar',['--extract','--gzip','--file',archive,'--directory',payload]).status).toBe(0);
   mkdirSync(resolve(payload,'package/unsafe-empty'));
