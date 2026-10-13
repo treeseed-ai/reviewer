@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
@@ -200,7 +200,8 @@ export function inspectInstalledOwner(sourceRoot:string,installed:string):Instal
   if(extracted.status!==0||extracted.error||extracted.signal)throw new Error('Native archive extraction is incomplete.');
   return resolve(directory,'package');
  };
- const originalRoot=extract(sourceArchive,resolve(temporary,'source')),heldRoot=extract(archive,resolve(temporary,'held'));
+ const heldArchive=resolve(temporary,'held.tgz');writeFileSync(heldArchive,archiveBytes,{mode:0o600});
+ const originalRoot=extract(sourceArchive,resolve(temporary,'source')),heldRoot=extract(heldArchive,resolve(temporary,'held'));
  const files=pack.files.map(file=>{
   const original=regular(originalRoot,file.path),unpacked=regular(heldRoot,file.path);
   if(original.bytes.length!==file.size||!original.bytes.equals(unpacked.bytes))
@@ -215,6 +216,7 @@ export function inspectInstalledOwner(sourceRoot:string,installed:string):Instal
   throw new Error('Installed owner contains missing or unarchived assets.');
  const manifest=JSON.parse(regular(root,'package.json').bytes.toString('utf8')) as {name:string;version:string};
  if(manifest.name!==source.name||manifest.version!==source.version)throw new Error('Installed package identity differs from its source.');
+ if(!regular(dirname(installed),expected.filename).bytes.equals(archiveBytes))throw new Error('Held archive changed during native package inspection.');
  return {sourceRoot,root,archive,archiveSha256:digest(archiveBytes),name:source.name,version:source.version,files,bins,pack};
  }finally{rmSync(temporary,{recursive:true,force:true});}
 }
