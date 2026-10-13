@@ -26,7 +26,7 @@ export function verifierTimeout(value: unknown): number {
 		throw new Error('Verifier timeoutMs must be an integer from 1 to 86400000 milliseconds.');
 	return value;
 }
-export function localRequestDiagnostics(args: string[], _scope?: string): GuaranteeDiagnostic[] {
+export function localRequestDiagnostics(args: string[], scope?: string): GuaranteeDiagnostic[] {
 	const supported = new Set(['--workspace', '--ids', '--plan', '--run-id', '--environment', '--acceptance-spec', '--acceptance-section', '--acceptance-exact-section', '--installed-packages']);
 	const errors = args.filter(arg => arg.startsWith('--') && !supported.has(arg))
 		.map(arg => diagnostic(`Unsupported local component option ${arg}; no evidence was executed.`));
@@ -38,6 +38,8 @@ export function localRequestDiagnostics(args: string[], _scope?: string): Guaran
 	const locations=args.flatMap((arg,index)=>arg==='--installed-packages'?[args[index+1]??'']:[]);
 	if(locations.length>1||locations.some(path=>!isAbsolute(path)))
 		errors.push(diagnostic('Installed packages require one explicit absolute directory.'));
+	if(scope==='local-integrated-runtime'&&!args.includes('--plan')&&!locations.length)
+		errors.push(diagnostic('Integrated runtime execution requires one explicit absolute installed package directory.'));
 	return errors;
 }
 function files(root: string, suffix: string): string[] {
@@ -300,7 +302,7 @@ if (process.argv[1] && existsSync(process.argv[1]) && import.meta.url === pathTo
 			plan.diagnostics.push(...coverage.diagnostics.map(diagnostic));
 		} catch (error) { plan.diagnostics.push(diagnostic(error instanceof Error ? error.message : 'Invalid acceptance specification.')); }
 	}
-	plan.diagnostics.push(...localRequestDiagnostics(process.argv.slice(2)));
+	plan.diagnostics.push(...localRequestDiagnostics(process.argv.slice(2),plan.entries[0]?.scope));
 	plan.ok = plan.diagnostics.length === 0;
 	if(process.argv.includes('--plan')&&process.argv.includes('--installed-packages')) {
 		const custody=prepareInstalledExecution(root,plan,option('installed-packages'));

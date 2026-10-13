@@ -2,6 +2,15 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: installed-required-unit
+    action: {verifier: reviewer.prerequisites.installed-required-unit}
+    expect: {status: passed}
+  - id: installed-source-denial-native
+    action: {verifier: reviewer.prerequisites.installed-source-denial-native}
+    expect: {status: passed}
+  - id: installed-integrated-native
+    action: {verifier: reviewer.prerequisites.installed-integrated-native}
+    expect: {status: passed}
   - id: action-native-pins-unit
     action: {verifier: reviewer.prerequisites.action-native-pins-unit}
     expect: {status: passed}

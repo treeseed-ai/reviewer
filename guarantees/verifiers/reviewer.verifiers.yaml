@@ -1,6 +1,21 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.installed-required-unit:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/unit/guarantee-command.test.ts
+    testName: requires installed archives for integrated execution while retaining source inspection and component scope
+  reviewer.prerequisites.installed-source-denial-native:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/source-runner-custody.test.ts
+    testName: native integrated CLI denies checkout execution before any owning suite or scene while retaining source plans and failed receipts
+  reviewer.prerequisites.installed-integrated-native:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/integration/guarantees/installed-custody.test.ts
+    testName: native integrated installed command runs fresh complete source suites and exact archived assets while denying source fallback and altered custody before retry
   reviewer.prerequisites.action-native-pins-unit:
     kind: vitestCase
     ownerPackage: '@treeseed/reviewer'
