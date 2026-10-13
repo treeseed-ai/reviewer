@@ -7,6 +7,39 @@ import ts from 'typescript';
 import { assetPaths, inspectInstalledOwner, installedCustodyDiagnostics, installedDirectory } from '../../../src/verifiers/guarantees/installed-custody.ts';
 import { productionDependencyArchives, productionInstallFlags } from '../../fixtures/guarantee-prerequisites.ts';
 
+it('matches native archives across checkout permission masks while denying source bytes executable identity and installed mutations',()=>{
+ const root=mkdtempSync(resolve(tmpdir(),'installed-portable-modes-')),source=resolve(root,'source'),installation=resolve(root,'installation');
+ try {
+  mkdirSync(resolve(source,'assets'),{recursive:true});mkdirSync(installation);
+  writeFileSync(resolve(source,'package.json'),JSON.stringify({name:'native-portable-owner',version:'1.0.0',files:['assets']}));
+  const readable=resolve(source,'assets/proof.ts'),executable=resolve(source,'assets/command.sh');
+  writeFileSync(readable,'export const value="exact archived bytes";\n');chmodSync(readable,0o644);
+  writeFileSync(executable,'#!/bin/sh\nexit 0\n');chmodSync(executable,0o755);
+  for(const args of [['init','-q'],['add','.'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Exact native package source']])
+   expect(spawnSync('git',args,{cwd:source}).status).toBe(0);
+  const packed=spawnSync('npm',['pack','--ignore-scripts','--json','--pack-destination',installation],{cwd:source,encoding:'utf8'});expect(packed.status).toBe(0);
+  const archive=resolve(installation,JSON.parse(packed.stdout)[0].filename),archiveBytes=readFileSync(archive);
+  const install=spawnSync('npm',['install','--prefix',installation,...productionInstallFlags,archive],{encoding:'utf8'});expect(install.status,install.stderr).toBe(0);
+  chmodSync(readable,0o600);chmodSync(executable,0o700);
+  expect(spawnSync('git',['status','--porcelain'],{cwd:source,encoding:'utf8'}).stdout).toBe('');
+  const installed=resolve(installation,'node_modules'),held=inspectInstalledOwner(source,installed);
+  expect(held.files.find(file=>file.path==='assets/command.sh')?.mode).toBe(0o111);
+  expect(installedCustodyDiagnostics([held])).toEqual([]);
+  const original=readFileSync(readable),asset=resolve(held.root,'assets/proof.ts');
+  for(const failure of ['source-bytes','source-executable','installed-bytes','installed-mode','archive-trailing']) {
+   if(failure==='source-bytes')writeFileSync(readable,'altered source');
+   if(failure==='source-executable')chmodSync(executable,0o600);
+   if(failure==='installed-bytes')writeFileSync(asset,'altered installed bytes');
+   if(failure==='installed-mode')chmodSync(asset,0o755);
+   if(failure==='archive-trailing')writeFileSync(archive,Buffer.concat([archiveBytes,Buffer.from('unarchived trailing bytes')]));
+   expect(()=>inspectInstalledOwner(source,installed),failure).toThrow();
+   writeFileSync(readable,original);chmodSync(readable,0o600);chmodSync(executable,0o700);
+   writeFileSync(asset,original);chmodSync(asset,0o644);writeFileSync(archive,archiveBytes);
+  }
+  expect(installedCustodyDiagnostics([held])).toEqual([]);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+
 it('matches actual npm archive and production installation bytes and rejects changed missing redirected and unarchived assets',()=>{
  const root=mkdtempSync(resolve(tmpdir(),'installed-owner-custody-')),source=resolve(root,'source'),installation=resolve(root,'installation'),installed=resolve(installation,'node_modules');
  try {

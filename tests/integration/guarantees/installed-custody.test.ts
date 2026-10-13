@@ -113,6 +113,10 @@ it('native integrated installed command runs fresh complete source suites and ex
  phases.length=0;onTestFailed(()=>{throw new Error('ACCEPTANCE_INSTALLED_PHASE_MEASUREMENTS: '+JSON.stringify(phases));});
  try {
   createProductionInstallation(workDeadline,true);
+  for(const args of [['add','-A'],['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Exact installed source candidate']])
+   expect(native('OWNER_CANDIDATE','git',args,source,workDeadline).status).toBe(0);
+  chmodSync(resolve(source,'assets/helper.ts'),0o600);
+  expect(native('OWNER_MODE_IDENTITY','git',['status','--porcelain'],source,workDeadline).stdout).toBe('');
   const command=resolve(installed,'.bin/treeseed-reviewer-guarantees'),reviewerSource=resolve(workspace,'packages/reviewer');
   expect(inspectInstalledOwner(reviewerSource,installed).name).toBe('@treeseed/reviewer');
   const common=['--workspace',workspace,'--ids','proof','--acceptance-spec','packages/native/acceptance.md'];

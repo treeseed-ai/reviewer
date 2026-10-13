@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync, readlinkSync, readdirSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, mkdtempSync, readFileSync, readlinkSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 const digest=(bytes:Buffer)=>createHash('sha256').update(bytes).digest('hex');
@@ -144,14 +145,8 @@ export function assetPaths(root:string,files:InstalledOwner['files'],bins:Instal
  });
  return walk('').sort();
 }
-/** Native npm inventory and the actual held archive remain the packaging authority. */
-export function inspectInstalledOwner(sourceRoot:string,installed:string):InstalledOwner {
- const source=JSON.parse(regular(sourceRoot,'package.json').bytes.toString('utf8')) as {name:string;version:string};
- if(!/^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/u.test(source.name)||typeof source.version!=='string'||!source.version)
-  throw new Error('Installed source package identity is malformed.');
- const root=resolve(installed,source.name);
- if(realpathSync(root)!==root||!lstatSync(root).isDirectory())throw new Error('Installed owner cannot be a workspace symlink.');
- const inventory=spawnSync('npm',['pack','--dry-run','--ignore-scripts','--json'],{cwd:sourceRoot,encoding:'utf8',timeout:120_000,maxBuffer:32*1024*1024});
+function nativePackageInventory(sourceRoot:string,args:string[],source:{name:string;version:string}) {
+ const inventory=spawnSync('npm',args,{cwd:sourceRoot,encoding:'utf8',timeout:120_000,maxBuffer:32*1024*1024});
  if(inventory.status!==0||inventory.error||inventory.signal)throw new Error('Native package inventory is unavailable.');
  const records=JSON.parse(inventory.stdout) as Array<{name:string;version:string;filename:string;integrity:string;entryCount:number;files:Array<{path:string;size:number;mode:number}>}>;
  if(records.length!==1)throw new Error('Native package inventory is ambiguous.');
@@ -160,9 +155,31 @@ export function inspectInstalledOwner(sourceRoot:string,installed:string):Instal
   ||!Array.isArray(pack.files)||!pack.files.length||pack.entryCount!==pack.files.length
   ||pack.files.some(file=>!member(file.path)||!Number.isSafeInteger(file.size)||file.size<0||!Number.isSafeInteger(file.mode))
   ||new Set(pack.files.map(file=>file.path)).size!==pack.files.length)throw new Error('Native package inventory is incomplete.');
- const archive=resolve(installed,'..',pack.filename),archiveBytes=regular(dirname(installed),pack.filename).bytes;
+ return pack;
+}
+
+/** Native source payloads and held archive bytes have distinct custody. Git
+ * executable identity is portable across checkout read/permission masks. */
+export function inspectInstalledOwner(sourceRoot:string,installed:string):InstalledOwner {
+ const source=JSON.parse(regular(sourceRoot,'package.json').bytes.toString('utf8')) as {name:string;version:string};
+ if(!/^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/u.test(source.name)||typeof source.version!=='string'||!source.version)
+  throw new Error('Installed source package identity is malformed.');
+ const root=resolve(installed,source.name);
+ if(realpathSync(root)!==root||!lstatSync(root).isDirectory())throw new Error('Installed owner cannot be a workspace symlink.');
+ const temporary=mkdtempSync(resolve(tmpdir(),'reviewer-source-package-'));
+ try {
+ const expected=nativePackageInventory(sourceRoot,['pack','--ignore-scripts','--json','--pack-destination',temporary],source);
+ const sourceArchive=resolve(temporary,expected.filename),sourceBytes=regular(temporary,expected.filename).bytes;
+ if(expected.integrity!==`sha512-${createHash('sha512').update(sourceBytes).digest('base64')}`)
+  throw new Error('Native source archive differs from its package inventory.');
+ const archive=resolve(installed,'..',expected.filename),archiveBytes=regular(dirname(installed),expected.filename).bytes;
+ const pack=nativePackageInventory(sourceRoot,['pack','--dry-run','--ignore-scripts','--json',archive],source);
  if(pack.integrity!==`sha512-${createHash('sha512').update(archiveBytes).digest('base64')}`)
-  throw new Error('Held archive differs from current source package assets.');
+  throw new Error('Held archive changed during native package inspection.');
+ const sourceFiles=new Map(expected.files.map(file=>[file.path,file]));
+ if(pack.filename!==expected.filename||pack.files.length!==expected.files.length||pack.files.some(file=>{
+  const original=sourceFiles.get(file.path);return !original||original.size!==file.size||(original.mode&0o100)!==(file.mode&0o100);
+ }))throw new Error('Held archive differs from native source file inventory or executable identity.');
  const listing=spawnSync('tar',['--list','--gzip','--file',archive,'--quoting-style=literal'],{encoding:'utf8',timeout:120_000,maxBuffer:32*1024*1024});
  const entries=listing.stdout.trimEnd().split('\n').filter(path=>!path.endsWith('/'));
  if(listing.status!==0||listing.error||listing.signal||JSON.stringify([...entries].sort())!==JSON.stringify(pack.files.map(file=>`package/${file.path}`).sort()))
@@ -172,6 +189,9 @@ export function inspectInstalledOwner(sourceRoot:string,installed:string):Instal
   throw new Error('Held archive cannot contain redirected assets.');
  const files=pack.files.map(file=>{
   const unpacked=spawnSync('tar',['--extract','--to-stdout','--gzip','--file',archive,'--',`package/${file.path}`],{timeout:120_000,maxBuffer:Math.max(32*1024*1024,file.size+1)});
+  const original=spawnSync('tar',['--extract','--to-stdout','--gzip','--file',sourceArchive,'--',`package/${file.path}`],{timeout:120_000,maxBuffer:Math.max(32*1024*1024,file.size+1)});
+  if(original.status!==0||original.error||original.signal||original.stdout.length!==file.size||!original.stdout.equals(unpacked.stdout))
+   throw new Error('Held archive bytes differ from current native source package.');
   const asset=regular(root,file.path);
   if(unpacked.status!==0||unpacked.error||unpacked.signal||unpacked.stdout.length!==file.size||!asset.bytes.equals(unpacked.stdout)||asset.mode!==(file.mode&0o111))
    throw new Error('Installed assets differ from the held archive.');
@@ -183,6 +203,7 @@ export function inspectInstalledOwner(sourceRoot:string,installed:string):Instal
  const manifest=JSON.parse(regular(root,'package.json').bytes.toString('utf8')) as {name:string;version:string};
  if(manifest.name!==source.name||manifest.version!==source.version)throw new Error('Installed package identity differs from its source.');
  return {sourceRoot,root,archive,archiveSha256:digest(archiveBytes),name:source.name,version:source.version,files,bins,pack};
+ }finally{rmSync(temporary,{recursive:true,force:true});}
 }
 export function installedCustodyDiagnostics(owners:readonly InstalledOwner[]) {
  return owners.flatMap(owner=>{

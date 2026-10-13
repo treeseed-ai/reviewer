@@ -2,6 +2,9 @@ schemaVersion: treeseed.scene/v1
 id: reviewer.acceptance.prerequisites
 scope: local-component-tests
 workflow:
+  - id: installed-source-modes-unit
+    action: {verifier: reviewer.prerequisites.installed-source-modes-unit}
+    expect: {status: passed}
   - id: installed-required-unit
     action: {verifier: reviewer.prerequisites.installed-required-unit}
     expect: {status: passed}
