@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdtempSync, readFileSync, readlinkSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
@@ -180,20 +180,34 @@ export function inspectInstalledOwner(sourceRoot:string,installed:string):Instal
  if(pack.filename!==expected.filename||pack.files.length!==expected.files.length||pack.files.some(file=>{
   const original=sourceFiles.get(file.path);return !original||original.size!==file.size||(original.mode&0o100)!==(file.mode&0o100);
  }))throw new Error('Held archive differs from native source file inventory or executable identity.');
- const listing=spawnSync('tar',['--list','--gzip','--file',archive,'--quoting-style=literal'],{encoding:'utf8',timeout:120_000,maxBuffer:32*1024*1024});
- const entries=listing.stdout.trimEnd().split('\n').filter(path=>!path.endsWith('/'));
- if(listing.status!==0||listing.error||listing.signal||JSON.stringify([...entries].sort())!==JSON.stringify(pack.files.map(file=>`package/${file.path}`).sort()))
-  throw new Error('Held archive members do not match native package inventory.');
- const verbose=spawnSync('tar',['--list','--verbose','--gzip','--file',archive],{encoding:'utf8',timeout:120_000,maxBuffer:32*1024*1024});
- if(verbose.status!==0||verbose.error||verbose.signal||verbose.stdout.trimEnd().split('\n').some(line=>!['-','d'].includes(line[0]??'')))
-  throw new Error('Held archive cannot contain redirected assets.');
+ const extract=(archive:string,directory:string)=>{
+  const options={encoding:'utf8' as const,timeout:120_000,maxBuffer:32*1024*1024};
+  const listing=spawnSync('tar',['--list','--gzip','--file',archive,'--quoting-style=literal'],options);
+  const verbose=spawnSync('tar',['--list','--verbose','--numeric-owner','--gzip','--file',archive,'--quoting-style=literal'],options);
+  if(listing.status!==0||listing.error||listing.signal||verbose.status!==0||verbose.error||verbose.signal)
+   throw new Error('Native archive inventory is unavailable.');
+  const entries=listing.stdout.trimEnd().split('\n'),details=verbose.stdout.trimEnd().split('\n');
+  if(entries.length!==details.length||new Set(entries).size!==entries.length||entries.some((entry,index)=>{
+   const directory=entry.endsWith('/'),path=directory?entry.slice(0,-1):entry;
+   const parts=path.split('/'),fields=details[index]!.trim().split(/\s+/u);
+   if(!member(path)||parts[0]!=='package'||parts.some(part=>part==='.')||fields[0]?.[0]!== (directory?'d':'-'))return true;
+   const size=Number(fields[2]);
+   return !Number.isSafeInteger(size)||size<0||(directory?size!==0:size!==sourceFiles.get(parts.slice(1).join('/'))?.size);
+  })||JSON.stringify(entries.filter(path=>!path.endsWith('/')).sort())!==JSON.stringify(pack.files.map(file=>`package/${file.path}`).sort()))
+   throw new Error('Native archive members differ from package inventory or contain redirected assets.');
+  mkdirSync(directory);
+  const extracted=spawnSync('tar',['--extract','--gzip','--file',archive,'--directory',directory,'--no-same-owner','--no-same-permissions'],options);
+  if(extracted.status!==0||extracted.error||extracted.signal)throw new Error('Native archive extraction is incomplete.');
+  return resolve(directory,'package');
+ };
+ const heldArchive=resolve(temporary,'held.tgz');writeFileSync(heldArchive,archiveBytes,{mode:0o600});
+ const originalRoot=extract(sourceArchive,resolve(temporary,'source')),heldRoot=extract(heldArchive,resolve(temporary,'held'));
  const files=pack.files.map(file=>{
-  const unpacked=spawnSync('tar',['--extract','--to-stdout','--gzip','--file',archive,'--',`package/${file.path}`],{timeout:120_000,maxBuffer:Math.max(32*1024*1024,file.size+1)});
-  const original=spawnSync('tar',['--extract','--to-stdout','--gzip','--file',sourceArchive,'--',`package/${file.path}`],{timeout:120_000,maxBuffer:Math.max(32*1024*1024,file.size+1)});
-  if(original.status!==0||original.error||original.signal||original.stdout.length!==file.size||!original.stdout.equals(unpacked.stdout))
+  const original=regular(originalRoot,file.path),unpacked=regular(heldRoot,file.path);
+  if(original.bytes.length!==file.size||!original.bytes.equals(unpacked.bytes))
    throw new Error('Held archive bytes differ from current native source package.');
   const asset=regular(root,file.path);
-  if(unpacked.status!==0||unpacked.error||unpacked.signal||unpacked.stdout.length!==file.size||!asset.bytes.equals(unpacked.stdout)||asset.mode!==(file.mode&0o111))
+  if(unpacked.bytes.length!==file.size||!asset.bytes.equals(unpacked.bytes)||asset.mode!==(file.mode&0o111))
    throw new Error('Installed assets differ from the held archive.');
   return {path:file.path,sha256:digest(asset.bytes),mode:asset.mode};
  });
@@ -202,6 +216,7 @@ export function inspectInstalledOwner(sourceRoot:string,installed:string):Instal
   throw new Error('Installed owner contains missing or unarchived assets.');
  const manifest=JSON.parse(regular(root,'package.json').bytes.toString('utf8')) as {name:string;version:string};
  if(manifest.name!==source.name||manifest.version!==source.version)throw new Error('Installed package identity differs from its source.');
+ if(!regular(dirname(installed),expected.filename).bytes.equals(archiveBytes))throw new Error('Held archive changed during native package inspection.');
  return {sourceRoot,root,archive,archiveSha256:digest(archiveBytes),name:source.name,version:source.version,files,bins,pack};
  }finally{rmSync(temporary,{recursive:true,force:true});}
 }
