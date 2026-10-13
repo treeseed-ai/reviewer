@@ -22,7 +22,19 @@ it('matches native archives across checkout permission masks while denying sourc
   const install=spawnSync('npm',['install','--prefix',installation,...productionInstallFlags,archive],{encoding:'utf8'});expect(install.status,install.stderr).toBe(0);
   chmodSync(readable,0o600);chmodSync(executable,0o700);
   expect(spawnSync('git',['status','--porcelain'],{cwd:source,encoding:'utf8'}).stdout).toBe('');
-  const installed=resolve(installation,'node_modules'),held=inspectInstalledOwner(source,installed);
+  const commands=resolve(root,'native-commands'),calls=resolve(root,'tar-calls.jsonl');mkdirSync(commands);
+  writeFileSync(resolve(commands,'tar'),ts.transpileModule(`#!${process.execPath}\nimport{appendFileSync}from'node:fs';import{spawnSync}from'node:child_process';
+   appendFileSync(${JSON.stringify(calls)},JSON.stringify(process.argv.slice(2))+'\\n');
+   const result=spawnSync('/usr/bin/tar',process.argv.slice(2),{stdio:'inherit'});if(result.error)throw result.error;
+   if(result.signal)process.kill(process.pid,result.signal);else process.exit(result.status??1);`,
+   {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);chmodSync(resolve(commands,'tar'),0o755);
+  const savedPath=process.env.PATH;let held:ReturnType<typeof inspectInstalledOwner>;
+  try {process.env.PATH=commands+delimiter+(savedPath??'');held=inspectInstalledOwner(source,resolve(installation,'node_modules'));}
+  finally {if(savedPath===undefined)delete process.env.PATH;else process.env.PATH=savedPath;}
+  const invocations=readFileSync(calls,'utf8').trim().split('\n').map(line=>JSON.parse(line) as string[]);
+  expect(held.files.map(file=>file.path).sort()).toEqual(['assets/command.sh','assets/proof.ts','package.json']);
+  expect(invocations.filter(args=>args.includes('--extract')).length,'Native archive validation must extract each of the two complete archives once, preserving every file comparison').toBe(2);
+  const installed=resolve(installation,'node_modules');
   expect(held.files.find(file=>file.path==='assets/command.sh')?.mode).toBe(0o111);
   expect(installedCustodyDiagnostics([held])).toEqual([]);
   const original=readFileSync(readable),asset=resolve(held.root,'assets/proof.ts');
