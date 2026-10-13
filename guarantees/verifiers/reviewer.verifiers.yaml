@@ -1,6 +1,11 @@
 schemaVersion: treeseed.guarantee-verifiers/v1
 ownerPackage: "@treeseed/reviewer"
 verifiers:
+  reviewer.prerequisites.installed-source-modes-unit:
+    kind: vitestCase
+    ownerPackage: '@treeseed/reviewer'
+    testFile: tests/unit/guarantees/installed-custody.test.ts
+    testName: matches native archives across checkout permission masks while denying source bytes executable identity and installed mutations
   reviewer.prerequisites.installed-required-unit:
     kind: vitestCase
     ownerPackage: '@treeseed/reviewer'
