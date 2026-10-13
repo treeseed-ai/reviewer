@@ -65,6 +65,13 @@ it('matches native archives across checkout permission masks while denying sourc
    }
   }finally {writeFileSync(wrapper,nativeWrapper);if(savedPath===undefined)delete process.env.PATH;else process.env.PATH=savedPath;}
   expect(installedCustodyDiagnostics([inspectInstalledOwner(source,installed)])).toEqual([]);
+  try {
+   process.env.PATH=commands+delimiter+(savedPath??'');
+   const mutate=`const selected=process.argv[process.argv.indexOf('--file')+1];if(process.argv.includes('--extract')&&(selected===${JSON.stringify(archive)}||selected.endsWith('/held.tgz')))appendFileSync(${JSON.stringify(archive)},'changed during extraction');`;
+   writeFileSync(wrapper,nativeWrapper.replace('if (result.signal)',mutate+'\nif (result.signal)'));
+   expect(()=>inspectInstalledOwner(source,installed),'Held archive mutation during native extraction must deny before returning custody').toThrow();
+  }finally{writeFileSync(wrapper,nativeWrapper);writeFileSync(archive,archiveBytes);if(savedPath===undefined)delete process.env.PATH;else process.env.PATH=savedPath;}
+  expect(installedCustodyDiagnostics([held])).toEqual([]);
   const payload=resolve(root,'archive-payload');mkdirSync(payload);
   expect(spawnSync('/usr/bin/tar',['--extract','--gzip','--file',archive,'--directory',payload]).status).toBe(0);
   mkdirSync(resolve(payload,'package/unsafe-empty'));
