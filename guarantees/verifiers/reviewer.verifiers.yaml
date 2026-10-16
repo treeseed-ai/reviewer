@@ -608,3 +608,13 @@ verifiers:
     ownerPackage: '@treeseed/reviewer'
     testFile: tests/contract/workflow-contract.test.ts
     testName: runs one immutable owner scene implementation and retains failure evidence
+  reviewer.prerequisites.owner-failure-code-unit:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/owner-failure-code.test.ts
+    testName: "retains an original bounded owner classification or code without reading inherited accessors coercing data or exposing failure prose"
+  reviewer.prerequisites.owner-failure-code-native:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantees/owner-failure-code-native.test.ts
+    testName: "native named Node assertions preserve original owner failure classification and code through denial repeated runs and raw-output redaction"

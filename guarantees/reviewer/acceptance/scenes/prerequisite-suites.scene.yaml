@@ -359,3 +359,9 @@ workflow:
   - id: action-dependency-contract
     action: {verifier: reviewer.prerequisites.action-dependency-contract}
     expect: {status: passed}
+  - id: owner-failure-code-unit
+    action: {verifier: reviewer.prerequisites.owner-failure-code-unit}
+    expect: {status: passed}
+  - id: owner-failure-code-native
+    action: {verifier: reviewer.prerequisites.owner-failure-code-native}
+    expect: {status: passed}
