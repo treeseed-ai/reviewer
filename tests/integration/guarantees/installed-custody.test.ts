@@ -17,7 +17,7 @@ import { inspectInstalledOwner } from '../../../src/verifiers/guarantees/install
 
 let installationRoot:string,installed:string,owner:string,runner:string,source:string,workspace:string;
 const phases:{phase:string;durationMs:number;remainingMs:number}[]=[];
-const original="import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{execFileSync}from'node:child_process';import{value}from'./helper.ts';test('installed native bytes',()=>{assert.equal(value,'exact native bytes');assert.equal(readFileSync(new URL('./payload.txt',import.meta.url),'utf8'),'actual archived payload');for(const command of ['fixture-installed-command','fixture-bundled-command'])assert.equal(execFileSync(command,[],{encoding:'utf8'}),'actual archived command');});";
+const original="import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{execFileSync}from'node:child_process';import{value}from'./helper.ts';test('installed native bytes',()=>{assert.equal(value,'exact native bytes');assert.equal(readFileSync(new URL('./payload.txt',import.meta.url),'utf8'),'actual archived payload');for(const command of ['fixture-installed-command','fixture-bundled-command'])assert.equal(execFileSync(command,[],{encoding:'utf8'}),'actual archived command');});test('installed owner failure classification',()=>{throw Object.assign(new Error('PRIVATE_INSTALLED_OWNER_DETAILS'),{classification:'OWNER_REQUIRES_REVIEW'});});";
 function native(phase:string,command:string,args:string[],cwd:string,deadline:number) {
  const timeout=Math.floor(deadline-performance.now());
  let label=`ACCEPTANCE_INSTALLED_${phase}: Original native command boundary`;
@@ -136,6 +136,10 @@ it('native integrated installed command runs fresh complete source suites and ex
   const archives=evidence.filter(path=>path.startsWith('evidence/installed-')).map(path=>JSON.parse(readFileSync(resolve(first.output,path),'utf8')));
   expect(archives.map(value=>value.sourceRoot).sort()).toEqual([source,reviewerSource].sort());
   for(const value of archives){expect(value.archiveSha256).toMatch(/^[a-f0-9]{64}$/);expect(value.files.length).toBeGreaterThan(0);}
+  const failed=native('OWNER_FAILURE_CODE',process.execPath,[runner,resolve(owner,'assets/proof.test.ts'),'installed owner failure classification',installed],owner,workDeadline);
+  expect(failed.status).toBe(1);expect(failed.stderr).toBe('');const observedFailure=JSON.parse(failed.stdout);
+  expect(observedFailure).toMatchObject({success:false,numPassedTests:0,numFailedTests:1,testResults:[{assertionResults:[{title:'installed owner failure classification',status:'failed',failure:{code:'OWNER_REQUIRES_REVIEW'}}]}]});
+  expect(observedFailure.testResults[0].assertionResults).toHaveLength(1);expect(failed.stdout).not.toContain('PRIVATE_INSTALLED_OWNER_DETAILS');
   const order=new Map([source,reviewerSource].map(root=>[root,readFileSync(resolve(root,'.treeseed/order'))]));
   const retained=new Map<string,Buffer>(),helper=resolve(owner,'assets/helper.ts'),helperBytes=readFileSync(helper);
   const archive=archives.find(value=>value.sourceRoot===source)!.archive as string,archiveBytes=readFileSync(archive);
