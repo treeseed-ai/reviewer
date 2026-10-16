@@ -54,3 +54,15 @@ export function installedCommandMeasurements(messages: unknown) {
   return values as {phase:string;durationMs:number;remainingMs:number}[];
  } catch {return undefined;}
 }
+
+/** Keep bounded original owner metadata in the existing failure code field. */
+export function nativeFailureCode(failure: unknown): string {
+ const own = (value: unknown, key: string): unknown => value && typeof value === 'object' && !Array.isArray(value)
+  ? Object.getOwnPropertyDescriptor(value, key)?.value : undefined;
+ const original = own(failure, 'cause');
+ for (const [owner, field] of [[original, 'classification'], [original, 'code'], [failure, 'classification'], [failure, 'code']] as const) {
+  const value = own(owner, field);
+  if (typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value)) return value;
+ }
+ return 'test_failed';
+}

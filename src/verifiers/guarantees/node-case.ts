@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { delimiter, resolve } from 'node:path';
 import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { failureCriterion, safeCliFailure } from './safe-cli-failure.ts';
+import { failureCriterion, safeCliFailure, nativeFailureCode } from './safe-cli-failure.ts';
 
 // Normalize Node's named terminal events, never test stdout or secret payloads.
 type Row = Record<string, unknown>;
@@ -58,7 +58,7 @@ for await (const event of run({ files: [file], testNamePatterns: [pattern], exec
 		const cliFailure = safeCliFailure(message);
 		// Retain source location and error classification, never assertion values,
 		// raw CLI payloads, stack dumps, stdout or credential-bearing messages.
-		const failure = error ? { code: String(error.code ?? 'test_failed'), file: String(event.data.file ?? ''),
+		const failure = error ? { code: nativeFailureCode(error), file: String(event.data.file ?? ''),
 			line: Number(event.data.line ?? 0), column: Number(event.data.column ?? 0), ...(criterion ? { criterion } : {}),
 			...(cliFailure ? { cliFailure } : {}) } : undefined;
 		assertions.push({ title: name, status: event.data.skip ? 'skipped' : event.type === 'test:pass' ? 'passed' : 'failed',
