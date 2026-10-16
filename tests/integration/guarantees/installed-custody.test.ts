@@ -136,7 +136,7 @@ it('native integrated installed command runs fresh complete source suites and ex
   const archives=evidence.filter(path=>path.startsWith('evidence/installed-')).map(path=>JSON.parse(readFileSync(resolve(first.output,path),'utf8')));
   expect(archives.map(value=>value.sourceRoot).sort()).toEqual([source,reviewerSource].sort());
   for(const value of archives){expect(value.archiveSha256).toMatch(/^[a-f0-9]{64}$/);expect(value.files.length).toBeGreaterThan(0);}
-  const failed=native('OWNER_FAILURE_CODE',process.execPath,[runner,resolve(owner,'assets/proof.test.ts'),'installed owner failure classification',installed],installationRoot,workDeadline);
+  const failed=native('OWNER_FAILURE_CODE',process.execPath,[runner,resolve(owner,'assets/proof.test.ts'),'installed owner failure classification',installed],owner,workDeadline);
   expect(failed.status).toBe(1);expect(failed.stderr).toBe('');const observedFailure=JSON.parse(failed.stdout);
   expect(observedFailure).toMatchObject({success:false,numPassedTests:0,numFailedTests:1,testResults:[{assertionResults:[{title:'installed owner failure classification',status:'failed',failure:{code:'OWNER_REQUIRES_REVIEW'}}]}]});
   expect(observedFailure.testResults[0].assertionResults).toHaveLength(1);expect(failed.stdout).not.toContain('PRIVATE_INSTALLED_OWNER_DETAILS');
