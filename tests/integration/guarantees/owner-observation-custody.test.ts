@@ -33,7 +33,7 @@ it('native failed owner assertions retain original observation digests and failu
   for(const secret of ['PRIVATE_OWNER_STDOUT','PRIVATE_OWNER_STDERR','PRIVATE_OWNER_MESSAGE'])expect(JSON.stringify({report,receipt})).not.toContain(secret);
   for(const retained of prior)expect(readFileSync(retained.path)).toEqual(retained.bytes);prior.push({path,bytes});
  }
- expect(readFileSync(resolve(root,'.treeseed/order'),'utf8').trim().split('\\n').sort()).toEqual(['integration','integration','unit','unit'].sort());
+ expect(readFileSync(resolve(root,'.treeseed/order'),'utf8').trim().split('\n').sort()).toEqual(['integration','integration','unit','unit'].sort());
 });
 it('native passing owner assertions fail custody when their explicit observation is malformed without inventing an observation digest or passing receipt',()=>{
  const original='{"truncated":',root=ownerCase(original,''),plan=planLocalGuarantees(root,['proof']),report=runLocalGuarantees(root,plan,'malformed-owner'),output=resolve(root,'.treeseed/guarantees/runs/malformed-owner'),hash=createHash('sha256').update('proof.scene').digest('hex'),path=resolve(output,'evidence',hash+'.observations.json'),receipt=JSON.parse(readFileSync(resolve(output,'evidence',hash+'.json'),'utf8'));

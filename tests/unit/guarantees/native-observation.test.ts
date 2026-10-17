@@ -27,14 +27,14 @@ it('denies directory symbolic link dangling link and hard link owner output with
  linkSync(target,path);expect(()=>nativeObservation(path)).toThrow();expect(readFileSync(target,'utf8')).toBe('{"original":true}');
 });
 
-it('denies owner observation replacement mutation deletion and permission changes during inspection while closing the original descriptor',()=>{
+it('denies owner observation replacement mutation deletion and permission changes during inspection while unchanged exact retry remains accepted',()=>{
  const parse=JSON.parse;
  for(const mode of ['replace','mutate','delete','permissions']as const){
   const root=fixture(),path=resolve(root,'observation.json'),original='{"original":true}';writeFileSync(path,original);
   const spy=vi.spyOn(JSON,'parse').mockImplementation((text:string)=>{spy.mockRestore();if(mode==='replace'){renameSync(path,path+'.retained');writeFileSync(path,original);}else if(mode==='mutate')writeFileSync(path,'{"original":false}');else if(mode==='delete')unlinkSync(path);else chmodSync(path,0);return parse(text);});
   try{expect(()=>nativeObservation(path)).toThrow();}finally{spy.mockRestore();if(mode==='permissions')chmodSync(path,0o600);}
   if(mode==='replace')expect(readFileSync(path+'.retained','utf8')).toBe(original);
-  // A failed inspection must release its descriptor so independent exact retry can proceed.
+  // The original valid bytes must still support independent exact retry.
   writeFileSync(path,original);expect(nativeObservation(path)).toEqual({sha256:createHash('sha256').update(original).digest('hex')});
  }
 });
