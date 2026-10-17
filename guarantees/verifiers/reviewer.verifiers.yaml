@@ -618,3 +618,38 @@ verifiers:
     ownerPackage: "@treeseed/reviewer"
     testFile: tests/integration/guarantees/owner-failure-code-native.test.ts
     testName: "native named Node assertions preserve original owner failure classification and code through denial repeated runs and raw-output redaction"
+  reviewer.prerequisites.owner-observation-unit-1:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-observation.test.ts
+    testName: "retains exact bounded owner JSON bytes and digest without interpreting the owner observation or creating absent files"
+  reviewer.prerequisites.owner-observation-unit-2:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-observation.test.ts
+    testName: "denies malformed truncated empty invalid UTF8 unreadable and oversized owner observations while preserving original bytes"
+  reviewer.prerequisites.owner-observation-unit-3:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-observation.test.ts
+    testName: "denies directory symbolic link dangling link and hard link owner output without touching the original target"
+  reviewer.prerequisites.owner-observation-unit-4:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/unit/guarantees/native-observation.test.ts
+    testName: "denies owner observation replacement mutation deletion and permission changes during inspection while unchanged exact retry remains accepted"
+  reviewer.prerequisites.owner-observation-native-1:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantees/owner-observation-custody.test.ts
+    testName: "retains explicit owner observations only in the current native run bundle while preserving complete prerequisites failed assertions and caller path denial"
+  reviewer.prerequisites.owner-observation-native-2:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantees/owner-observation-custody.test.ts
+    testName: "native failed owner assertions retain original observation digests and failure classification through fresh repeated invocations without leaking subprocess prose"
+  reviewer.prerequisites.owner-observation-native-3:
+    kind: vitestCase
+    ownerPackage: "@treeseed/reviewer"
+    testFile: tests/integration/guarantees/owner-observation-custody.test.ts
+    testName: "native passing owner assertions fail custody when their explicit observation is malformed without inventing an observation digest or passing receipt"

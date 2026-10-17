@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHash, randomUUID } from 'node:crypto';
 import { runOwnedCommand } from './owned-command.ts';
+import {nativeObservation} from './native-observation.ts';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, resolve, relative, sep } from 'node:path';
@@ -231,6 +232,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 		if (binding.definition.kind !== 'vitestCase' && binding.definition.kind !== 'nodeTestCase') continue;
 		const { testFile, testName } = binding.definition;
 		const reportPath = resolve(output, 'evidence', `${createHash('sha256').update(ref).digest('hex')}.json`);
+		const observationPath=reportPath.replace(/\.json$/u,'.observations.json');
 		const sourceDigest = createHash('sha256').update(readFileSync(inside(binding.root, testFile))).digest('hex');
 		const testCommand = ownerTestCommand(binding.root);
 		const config = /--config\s+(\S+)/.exec(testCommand)?.[1];
@@ -243,7 +245,7 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 			: [...(import.meta.url.endsWith('.ts') ? ['--import', createRequire(import.meta.url).resolve('tsx')] : []),
 				fileURLToPath(new URL(`./node-case.${import.meta.url.endsWith('.ts') ? 'ts' : 'js'}`, import.meta.url)), inside(binding.root, testFile), testName,...(installedPackages?[realpathSync(installedPackages)]:[])];
 		const timeoutMs = verifierTimeout(Reflect.get(binding.definition, 'timeoutMs'));
-		const result = runOwnedCommand(process.execPath, args, { cwd: binding.root, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 });
+		const result = runOwnedCommand(process.execPath, args, { cwd: binding.root, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024, env:{...process.env,TREESEED_GUARANTEE_OBSERVATION_PATH:observationPath} });
 		let passed = false;
 		let observed: Array<{ title: string; status: string; duration: number; failure?: unknown }> = [];
 		try {
@@ -260,11 +262,13 @@ export function runLocalGuarantees(root: string, plan: LocalGuaranteePlan, runId
 				&& observed.every(check => check.status === 'passed' && Number.isFinite(check.duration) && check.duration >= 0);
 		} catch { /* Missing/malformed evidence fails closed. */ }
 		const afterCustodyErrors = [...custodyDiagnostics(prerequisites.candidates),...installedCustodyDiagnostics(installedOwners)].map(diagnostic);
+		let observation:ReturnType<typeof nativeObservation>;
+		try{observation=nativeObservation(observationPath);}catch{afterCustodyErrors.push(diagnostic('Native owner observation custody is unavailable.'));}
 		passed = passed && !afterCustodyErrors.length;
 		writeFileSync(reportPath, JSON.stringify({ verifierId: ref, scope, testFile, testName, sourceDigest,
 			timeoutMs, processErrorCode: result.error && 'code' in result.error ? result.error.code : null,
-			exitCode: result.status, signal: result.signal, passed, checks: observed, diagnostics: afterCustodyErrors }, null, 2));
-		checks.set(ref, { status: passed ? 'passed' : 'failed', evidence: [relative(output, reportPath)], diagnostics: passed ? [] : [diagnostic('Exact coded verifier did not pass.'), ...afterCustodyErrors] });
+			exitCode: result.status, signal: result.signal, passed, checks: observed, ...(observation?{observationSha256:observation.sha256}:{}), diagnostics: afterCustodyErrors }, null, 2));
+		checks.set(ref, { status: passed ? 'passed' : 'failed', evidence: [relative(output, reportPath),...(observation?[relative(output,observationPath)]:[])], diagnostics: passed ? [] : [diagnostic('Exact coded verifier did not pass.'), ...afterCustodyErrors] });
 		if (!passed && entry.sceneVerifierRefs?.includes(ref)) failedSceneStep = true;
 		} finally { if (temporary) rmSync(temporary, { recursive: true, force: true }); }
 		}

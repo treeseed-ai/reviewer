@@ -24,6 +24,15 @@ test names, skipped tests, unavailable services and incomplete evidence cannot
 pass. Failed native checks retain error classification and source location,
 never raw credential-bearing test output.
 
+For explicitly retained owner observations, the selected verifier receives
+`TREESEED_GUARANTEE_OBSERVATION_PATH` inside its current immutable run bundle.
+Reviewer overrides any caller-supplied location. Owners may write public or
+appropriately encrypted JSON there; raw stdout/stderr remain redacted. A present
+file must be readable, regular, free of symbolic or hard links, valid UTF-8 JSON, unchanged during
+inspection and within the existing 8 MiB output bound. Valid bytes and their
+SHA256 are retained even when the assertion fails. Malformed or altered custody
+fails the run; an observation file alone never proves an assertion passed.
+
 For installed native acceptance, invoke the installed binary with
 `--installed-packages /absolute/isolated-install/node_modules`. Keep each actual
 owner archive beside `node_modules`, using the filename from its retained native
