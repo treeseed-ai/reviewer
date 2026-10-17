@@ -15,7 +15,7 @@ export function nativeObservation(path:string):{sha256:string}|undefined {
   if(length!==before.size)throw new Error('Native owner observation size changed during inspection.');
   const bytes=buffer.subarray(0,length);JSON.parse(new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes));
   const after=fstatSync(fd),current=lstatSync(path);
-  for(const value of [after,current])if(!valid(value)||value.dev!==before.dev||value.ino!==before.ino||value.size!==before.size||value.mode!==before.mode||value.mtimeMs!==before.mtimeMs||value.ctimeMs!==before.ctimeMs)throw new Error('Native owner observation changed during inspection.');
+  for(const value of [original,after,current])if(!valid(value)||value.dev!==before.dev||value.ino!==before.ino||value.size!==before.size||value.mode!==before.mode||value.mtimeMs!==before.mtimeMs||value.ctimeMs!==before.ctimeMs)throw new Error('Native owner observation changed during inspection.');
   return{sha256:createHash('sha256').update(bytes).digest('hex')};
  }finally{closeSync(fd);}
 }

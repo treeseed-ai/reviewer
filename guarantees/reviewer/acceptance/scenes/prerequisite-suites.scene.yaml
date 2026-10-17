@@ -365,3 +365,24 @@ workflow:
   - id: owner-failure-code-native
     action: {verifier: reviewer.prerequisites.owner-failure-code-native}
     expect: {status: passed}
+  - id: owner-observation-unit-1
+    action: {verifier: reviewer.prerequisites.owner-observation-unit-1}
+    expect: {status: passed}
+  - id: owner-observation-unit-2
+    action: {verifier: reviewer.prerequisites.owner-observation-unit-2}
+    expect: {status: passed}
+  - id: owner-observation-unit-3
+    action: {verifier: reviewer.prerequisites.owner-observation-unit-3}
+    expect: {status: passed}
+  - id: owner-observation-unit-4
+    action: {verifier: reviewer.prerequisites.owner-observation-unit-4}
+    expect: {status: passed}
+  - id: owner-observation-native-1
+    action: {verifier: reviewer.prerequisites.owner-observation-native-1}
+    expect: {status: passed}
+  - id: owner-observation-native-2
+    action: {verifier: reviewer.prerequisites.owner-observation-native-2}
+    expect: {status: passed}
+  - id: owner-observation-native-3
+    action: {verifier: reviewer.prerequisites.owner-observation-native-3}
+    expect: {status: passed}
