@@ -1,5 +1,5 @@
 import {afterEach,expect,it} from 'vitest';
-import {mkdtempSync,writeFileSync,readFileSync,rmSync,mkdirSync,chmodSync,symlinkSync,linkSync,truncateSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,readFileSync,rmSync,mkdirSync,chmodSync,symlinkSync,linkSync,truncateSync,unlinkSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -23,6 +23,6 @@ it('denies malformed truncated empty invalid UTF8 unreadable and oversized owner
 it('denies directory symbolic link dangling link and hard link owner output without touching the original target',()=>{
  const root=fixture(),path=resolve(root,'observation.json'),target=resolve(root,'original.json');writeFileSync(target,'{"original":true}');
  mkdirSync(path);expect(()=>nativeObservation(path)).toThrow();rmSync(path,{recursive:true});
- for(const value of [target,resolve(root,'absent.json')]){symlinkSync(value,path);expect(()=>nativeObservation(path)).toThrow();rmSync(path);}
+ for(const value of [target,resolve(root,'absent.json')]){symlinkSync(value,path);expect(()=>nativeObservation(path)).toThrow();unlinkSync(path);}
  linkSync(target,path);expect(()=>nativeObservation(path)).toThrow();expect(readFileSync(target,'utf8')).toBe('{"original":true}');
 });
