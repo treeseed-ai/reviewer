@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, w
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { candidate, custodyDiagnostics, fullSuiteFailures, fullSuitePassed, ownerTestCommand, participatingOwners } from '../../../src/verifiers/guarantees/prerequisites.ts';
+import { candidate, custodyDiagnostics, fullSuiteFailures, fullSuitePassed, ownerTestCommand, participatingOwners, safePrerequisiteOutput } from '../../../src/verifiers/guarantees/prerequisites.ts';
 import { planLocalGuarantees, type LocalGuaranteePlan } from '../../../src/verifiers/guarantees/command.ts';
 
 const report = () => ({ success: true, numTotalTests: 2, numPassedTests: 2, numFailedTests: 0,
@@ -11,6 +11,19 @@ const report = () => ({ success: true, numTotalTests: 2, numPassedTests: 2, numF
 	testResults: [{ assertionResults: [{title:'unit',status:'passed',duration:1}, {title:'integration',status:'passed',duration:2}] }] });
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root,{recursive:true,force:true}); });
+
+it('keeps failure output bounded and redacts double-Bearer, token, password, environment and path details', () => {
+	const lines = safePrerequisiteOutput(
+		'TOKEN=private-env\nError: failed at /home/alice/private/project/test.ts\nError: Bearer Bearer abc.def.ghi password=hunter2; bearer token opt.secret.value; BEARER other.value',
+		'Vitest timeout at C:\\Users\\alice\\private\\suite.ts');
+	expect(lines.join('\n')).toContain('[PATH]');
+	expect(lines.join('\n')).toContain('Bearer [REDACTED]');
+	expect(lines.join('\n')).toContain('password=[REDACTED]');
+	expect(lines.join('\n')).not.toMatch(/private-env|alice|hunter2|abc\.def|opt\.secret|other\.value/);
+	const bounded = safePrerequisiteOutput(`Error: ${'x'.repeat(5000)}`, '');
+	expect(bounded.join('\n').length).toBeLessThanOrEqual(300);
+	expect(safePrerequisiteOutput('suite passed', '')).toEqual([]);
+});
 
 it('accepts only complete observed full-suite evidence without skipped pending or failed boundaries', () => {
 	expect(fullSuitePassed(report())).toBe(true);
