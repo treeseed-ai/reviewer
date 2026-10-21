@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, w
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { candidate, custodyDiagnostics, fullSuiteFailures, fullSuitePassed, ownerTestCommand, participatingOwners } from '../../../src/verifiers/guarantees/prerequisites.ts';
+import { candidate, custodyDiagnostics, fullSuiteFailures, fullSuitePassed, ownerTestCommand, participatingOwners, safePrerequisiteOutput } from '../../../src/verifiers/guarantees/prerequisites.ts';
 import { planLocalGuarantees, type LocalGuaranteePlan } from '../../../src/verifiers/guarantees/command.ts';
 
 const report = () => ({ success: true, numTotalTests: 2, numPassedTests: 2, numFailedTests: 0,
@@ -39,6 +39,18 @@ it('accepts only complete observed full-suite evidence without skipped pending o
 		{testResults:[]},{testResults:[{assertionResults:[]}]},{testResults:null}])
 		expect(fullSuitePassed({...report(),...patch}),JSON.stringify(patch)).toBe(false);
 	for (const value of [null,{},[],true,'passed']) expect(fullSuitePassed(value)).toBe(false);
+});
+
+it('keeps failure output bounded and redacts credentials, environment dumps, and absolute paths', () => {
+	const lines = safePrerequisiteOutput('TOKEN=private-env\nError: failed at /home/alice/private/project/test.ts\nError: bearer Bearer abc.def.ghi password=hunter2',
+		'Vitest timeout at C:\\Users\\alice\\private\\suite.ts');
+	expect(lines.join('\n')).toContain('[PATH]');
+	expect(lines.join('\n')).toContain('Bearer [REDACTED]');
+	expect(lines.join('\n')).toContain('password=[REDACTED]');
+	expect(lines.join('\n')).not.toMatch(/private-env|alice|hunter2|abc\.def/);
+	const bounded = safePrerequisiteOutput(`Error: ${'x'.repeat(5000)}`, '');
+	expect(bounded.join('\n').length).toBeLessThanOrEqual(300);
+	expect(safePrerequisiteOutput('suite passed', '')).toEqual([]);
 });
 
 it('rejects malformed skipped failed absent and unmeasured assertion evidence', () => {
