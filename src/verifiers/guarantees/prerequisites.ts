@@ -13,6 +13,31 @@ import { failureCriterion, installedCommandMeasurements } from './safe-cli-failu
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 
+/** Failure-only process detail: retain useful lines while scrubbing secrets and paths. */
+export function safePrerequisiteOutput(stdout: unknown, stderr: unknown): string[] {
+	const output = [stdout, stderr].filter((value): value is string => typeof value === 'string').join('\n');
+	const lines = output.split(/\r?\n/u).filter(line => !/^\s*(?:\{|\[)/u.test(line)
+		&& /(?:error|failed|failure|exception|timeout|timed out|cannot|could not|unable|fatal|vitest)/iu.test(line)
+		&& !/^\s*[A-Z][A-Z0-9_]{1,}=/.test(line));
+	let remaining = 2048;
+	return lines.slice(-12).flatMap(line => {
+		const safe = line
+			.replace(/\bBearer(?:\s+Bearer)*\s+(?:token\s+)?\S+/giu, 'Bearer [REDACTED]')
+			.replace(/\b(token|secret|password|api[_-]?key|authorization|cookie)\b\s*[:=]\s*[^\s,;]+/giu, '$1=[REDACTED]')
+			.replace(/([?&](?:token|code|state|code_challenge)=)[^&#\s]+/giu, '$1[REDACTED]')
+			.replace(/(?:[A-Za-z]:\\|\\\\|\/)(?:[^\s:"'<>|]+[\\/])*[^\s:"'<>|]*/gu, '[PATH]')
+			.replace(/\s+/gu, ' ').slice(0, 300);
+		if (!safe || remaining <= 0) return [];
+		const bounded = safe.slice(0, remaining); remaining -= bounded.length;
+		return [bounded];
+	});
+}
+
+function safeProcessErrorCode(error: unknown): string | null {
+	const code = row(error).code;
+	return typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,79}$/u.test(code) ? code : null;
+}
+
 export function ownerTestCommand(root: string): string {
 	if (!existsSync(resolve(root,'package.json'))) {
 		const declared = row(row(parse(readFileSync(resolve(root,'treeseed.package.yaml'),'utf8'))).verify).local;
@@ -232,6 +257,7 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 		const receiptPath = resolve(output, 'evidence', `prerequisite-${createHash('sha256').update(root).digest('hex')}.json`);
 		let passed = false, reason = '', custody: ReturnType<typeof candidate> | null = null;
 		let command: string[] = [], status: number | null = null, signal: string | null = null, checks: unknown = null;
+		let processErrorCode: string | null = null, processOutput: string[] = [];
 		let temporary: string | undefined;
 		let reporter: string | undefined, reporterDigest: string | undefined;
 		const startedAt = new Date().toISOString();
@@ -248,14 +274,16 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 				command = elixir ? ['elixir',elixir] : ['bash',shell!];
 				result = runOwnedCommand(command[0]!,command.slice(1),{cwd:root,encoding:'utf8',timeout:1_200_000,maxBuffer:32*1024*1024});
 				status = result.status; signal = result.signal;
+				processErrorCode = safeProcessErrorCode(result.error); processOutput = safePrerequisiteOutput(result.stdout, result.stderr);
 				report = JSON.parse(result.stdout);
 			} else if (!native) {
 				// Native child tools may inherit stdout; consume only Vitest's own report file.
 				temporary = mkdtempSync(resolve(tmpdir(),'guarantee-vitest-suite-'));
 				const destination = resolve(temporary,'report.json');
-				command = [process.execPath,realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', ...(config ? ['--config', config] : []), '--reporter=json', `--outputFile=${destination}`];
+				command = [process.execPath,realpathSync(resolve(root, 'node_modules/vitest/vitest.mjs')), 'run', '--api.host', '127.0.0.1', ...(config ? ['--config', config] : []), '--reporter=json', `--outputFile=${destination}`];
 				result = runOwnedCommand(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 1_200_000, maxBuffer: 32 * 1024 * 1024 });
 				status = result.status; signal = result.signal;
+				processErrorCode = safeProcessErrorCode(result.error); processOutput = safePrerequisiteOutput(result.stdout, result.stderr);
 				report = JSON.parse(readFileSync(destination,'utf8'));
 			} else {
 				// Preserve the declared npm entrypoint, including its original build and runner.
@@ -271,6 +299,7 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 				command = ['npm','test','--',`--test-reporter=${reporterSpecifier}`,`--test-reporter-destination=${destination}`];
 				result = runOwnedCommand(command[0]!,command.slice(1),{cwd:root,encoding:'utf8',timeout:1_200_000,maxBuffer:32*1024*1024});
 				status = result.status; signal = result.signal;
+				processErrorCode = safeProcessErrorCode(result.error); processOutput = safePrerequisiteOutput(result.stdout, result.stderr);
 				report = JSON.parse(readFileSync(destination,'utf8'));
 			}
 			checks = { total: report.numTotalTests, passed: report.numPassedTests, failed: report.numFailedTests,
@@ -284,8 +313,11 @@ export function runPrerequisites(plan: LocalGuaranteePlan, output: string, works
 				: 'Full prerequisite suite failed, skipped assertions, lacked complete evidence, or changed the candidate.';
 		} catch { reason = 'Full prerequisite suite entrypoint, execution, evidence, or exact candidate custody is unavailable.'; }
 		finally { if (temporary) rmSync(temporary,{recursive:true,force:true}); }
+		const failureEvidence = !passed && (processErrorCode || processOutput.length)
+			? { ...(processErrorCode ? { processErrorCode } : {}), ...(processOutput.length ? { processOutput } : {}) } : undefined;
 		writeFileSync(receiptPath, JSON.stringify({ root, ...custody, command, startedAt,
-			completedAt: new Date().toISOString(), passed, exitCode: status, signal, checks, reason }, null, 2));
+			completedAt: new Date().toISOString(), passed, exitCode: status, signal, checks, reason,
+			...(failureEvidence ? { failureEvidence } : {}) }, null, 2));
 		receipts.push(relative(output, receiptPath));
 		if (!passed) diagnostics.push(`${root}: prerequisite unit/integration suite did not pass. ${reason}`);
 	}

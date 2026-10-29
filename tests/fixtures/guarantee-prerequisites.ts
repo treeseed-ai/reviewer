@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -29,6 +29,15 @@ export function productionDependencyArchives(root:string, pack:(args:string[])=>
 // Same native fixture; callers retain ownership of every allocated root and cleanup.
 export const roots: string[] = [];
 export const productionInstallFlags = ['--omit=dev','--ignore-scripts','--package-lock=false','--no-save','--no-audit','--no-fund','--prefer-offline'] as const;
+/** Replace only the fixture's symlink with an owned private launcher directory. */
+export function privateVitestLauncher(root: string, source: string) {
+	const packagePath = resolve(root, 'node_modules/vitest');
+	unlinkSync(packagePath);
+	mkdirSync(packagePath);
+	const launcher = resolve(packagePath, 'vitest.mjs');
+	writeFileSync(launcher, source);
+	return launcher;
+}
 export function fixture(failing = false, skipped = false) {
 	const root = mkdtempSync(resolve(tmpdir(), 'guarantee-full-suite-')); roots.push(root);
 	for (const directory of ['tests', 'guarantees', '.treeseed', 'node_modules']) mkdirSync(resolve(root, directory), { recursive: true });
